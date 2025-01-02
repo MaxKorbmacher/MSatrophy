@@ -81,6 +81,7 @@ anova(edss.m1,edss.m3) # the two best performing models are not different from e
 # we pick hence the simpler model, edss.m1
 # contains sex,age,vol, no interaction effects
 # 3. Regional age associations ####
+# 3.1 Cortical ####
 ROIs = c(df %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
 df %>% select(starts_with("rh") & ends_with("volume")) %>% names())
 n_cort_ROIs = length(ROIs)
@@ -112,6 +113,8 @@ p1 = p1+labs(fill="Annual loss in mm<sup>3</sup>") +
     legend.title = element_markdown()
   )
 #
+#
+# 3.2 Sub-Cortical ####
 # subcortical: thalamus, pallidum, amygdala, hippocampus, putamen, accumbens area, and caudate nucleus
 ROIs = names(df)[2:46]
 ROIs = ROIs[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC|Cerebellum.Cortex"),ROIs)]
@@ -152,9 +155,8 @@ p1.1 = p1.1+labs(fill="Annual loss in mm<sup>3</sup>") +
     legend.title = element_markdown()
   )
 
-
-
 # 4. Regional EDSS associations ####
+# 4.1 Cortical ####
 reslist=list()
 for(region in 1:length(ROIs)){
   f = formula(paste(ROIs[region],"~TIV+sex+edss+age+(1|eid)"))
@@ -183,12 +185,12 @@ p2 = p2+labs(fill="mm<sup>3</sup> per one EDSS point") +
     legend.title = element_markdown()
   )
 #
+# 4.2 Sub-Cortical ####
+
+...
+
+# 5. Merge figures ####
 #
 #
 # We see some strong associations between age and local volumes
 ggarrange(p1,p2,p1.1,ncol=2,nrow=2)
-
-
-edss.m4 = lmer(edss~TotalVol+age+sex+TIV+(1|eid),df)
-summary(edss.m4) 
-effectsize::standardize_parameters(edss.m4)
