@@ -21,7 +21,7 @@ levels(df$sex) = c("Male","Female")
 df$TIV = df$EstimatedTotalIntraCranialVol/1000000 # transform into liters / dm3
 df$TotalVol = df$TotalGrayVol/1000000
 # from mm^3 to dm^3 or liters
-vol.m = lmer(TotalVol~session+TIV+sex+age+(1|eid),df)
+vol.m = lmer(TotalVol~session+TIV+sex+(1|eid),df)
 summary(vol.m) 
 plot(Effect("session",vol.m))
 Effect("session",vol.m)
@@ -57,7 +57,6 @@ effectsize::standardize_parameters(edss.m1) # clear association between edss & v
 r.squaredGLMM(edss.m1)
 
 
-
 edss.m2 = lmer(edss~TotalVol*sex+TIV+age+(1|eid),df)
 summary(edss.m2) 
 effectsize::standardize_parameters(edss.m2) # clear association between edss & vol
@@ -80,14 +79,14 @@ r.squaredGLMM(edss.m3)
 
 anova(edss.m1,edss.m3) # the two best performing models are not different from each other
 # we pick hence the simpler model, edss.m1
-# contains sex,age,geno,vol, no interaction effects
+# contains sex,age,vol, no interaction effects
 # 3. Regional age associations ####
 ROIs = c(df %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
 df %>% select(starts_with("rh") & ends_with("volume")) %>% names())
-
+n_cort_ROIs = length(ROIs)
 reslist=list()
 for(region in 1:length(ROIs)){
-  f = formula(paste(ROIs[region],"~TIV+sex+age+geno+(1|eid)"))
+  f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
   mod = lmer(f,df)
   age.beta = summary(mod)$coefficients[4]
   SE = summary(mod)$coefficients[4,2]
@@ -96,8 +95,9 @@ for(region in 1:length(ROIs)){
   reslist[[region]] = data.frame(ROIs[region],age.beta,SE,t,p)
 }
 res = list_rbind(reslist)
-res$p.corr = length(res$p)*res$p
+res$p.corr = (length(res$p)+12)*res$p # Bonferroni correction considering also the 12 subcortical areas
 plot_df = res
+plot_df = plot_df[order(plot_df$ROIs.region.),] # order the data frame
 plot_df$age.beta = ifelse(plot_df$p.corr > .05, NA,plot_df$age.beta)
 plot_df$region = brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",plot_df$ROIs.region.)][1:34]
 plot_df$hemi = ifelse(grepl("lh_",plot_df$ROIs.region.)==T,"left","right")
@@ -111,11 +111,15 @@ p1 = p1+labs(fill="Annual loss in mm<sup>3</sup>") +
     plot.title = element_markdown(),
     legend.title = element_markdown()
   )
-
-# 4. Regional EDSS associations ####
+#
+# subcortical: thalamus, pallidum, amygdala, hippocampus, putamen, accumbens area, and caudate nucleus
+ROIs = names(df)[2:46]
+ROIs = ROIs[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC|Cerebellum.Cortex"),ROIs)]
+ROIs = ROIs[!grepl(c("CC|Cerebellum.Cortex"),ROIs)]
+ROIs = ROIs[order(ROIs)]
 reslist=list()
 for(region in 1:length(ROIs)){
-  f = formula(paste(ROIs[region],"~TIV+sex+edss+age+geno+(1|eid)"))
+  f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
   mod = lmer(f,df)
   age.beta = summary(mod)$coefficients[4]
   SE = summary(mod)$coefficients[4,2]
@@ -124,9 +128,48 @@ for(region in 1:length(ROIs)){
   reslist[[region]] = data.frame(ROIs[region],age.beta,SE,t,p)
 }
 res = list_rbind(reslist)
-res$p.corr = length(res$p)*res$p
+res$p.corr = (length(res$p)+n_cort_ROIs)*res$p # Bonferroni correction considering all ROIs
 plot_df = res
+plot_df = plot_df[order(plot_df$ROIs.region.),] # order the data frame
 plot_df$age.beta = ifelse(plot_df$p.corr > .05, NA,plot_df$age.beta)
+plot_df$label = brain_labels(aseg)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate"),brain_labels(aseg))]
+#brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",plot_df$ROIs.region.)][1:34]
+coronal_brain_aseg = as_tibble(aseg) %>%
+  filter(side == "coronal", !grepl("\\d", label))
+#
+# Note: the painful steps above leading to this merger are crucial.
+# This will be useful for later use of ggseg (aseg). Enjoy!
+plot_df = merge(plot_df,coronal_brain_aseg,by="label") # merge the data with the atlas labels
+#
+p1.1 = ggplot(plot_df) + geom_brain(atlas = aseg, side = "coronal",aes(fill = age.beta),color="black")+
+  #scale_fill_viridis_c(option = "cividis", direction = -1)+
+  scale_fill_gradient2(low = "blue",mid = "white",high="red") +
+  labs(title="Regional volume loss") + 
+  theme_void()
+p1.1 = p1.1+labs(fill="Annual loss in mm<sup>3</sup>") +
+  theme(
+    plot.title = element_markdown(),
+    legend.title = element_markdown()
+  )
+
+
+
+# 4. Regional EDSS associations ####
+reslist=list()
+for(region in 1:length(ROIs)){
+  f = formula(paste(ROIs[region],"~TIV+sex+edss+age+(1|eid)"))
+  mod = lmer(f,df)
+  age.beta = summary(mod)$coefficients[4]
+  SE = summary(mod)$coefficients[4,2]
+  t = summary(mod)$coefficients[4,4]
+  p = summary(mod)$coefficients[4,5]
+  reslist[[region]] = data.frame(ROIs[region],age.beta,SE,t,p)
+}
+res = list_rbind(reslist)
+res$p.corr = length(res$p)*res$p # p.adjust(res$p, method="BH")
+plot_df = res
+plot_df = plot_df[order(plot_df$ROIs.region.),] # order the data frame
+#plot_df$age.beta = ifelse(plot_df$p.corr > .05, NA,plot_df$age.beta)
 plot_df$region = brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",plot_df$ROIs.region.)][1:34]
 plot_df$hemi = ifelse(grepl("lh_",plot_df$ROIs.region.)==T,"left","right")
 p2 = ggplot(plot_df) + geom_brain(atlas = dk,aes(fill = age.beta),color="black")+
@@ -139,4 +182,13 @@ p2 = p2+labs(fill="mm<sup>3</sup> per one EDSS point") +
     plot.title = element_markdown(),
     legend.title = element_markdown()
   )
-ggarrange(p1,p2,ncol=2)
+#
+#
+#
+# We see some strong associations between age and local volumes
+ggarrange(p1,p2,p1.1,ncol=2,nrow=2)
+
+
+edss.m4 = lmer(edss~TotalVol+age+sex+TIV+(1|eid),df)
+summary(edss.m4) 
+effectsize::standardize_parameters(edss.m4)
