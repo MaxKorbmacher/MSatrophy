@@ -211,7 +211,7 @@ p01 = ggplot(plot_df) + geom_brain(atlas = dk,aes(fill = std.beta),color="black"
   scale_fill_gradient2(low = "blue",mid = "white",high="red") +
   #labs(title="Regional volume loss") + 
   theme_void()
-p01 = p01+labs(fill="Cohen's d") +
+p01 = p01+labs(fill="Std. Beta") +
   theme(
     plot.title = element_markdown(),
     legend.title = element_markdown()
@@ -238,12 +238,12 @@ plot_df = merge(plot_df02,res,by="ROIs.region.")
 plot_df02 = plot_df
 plot_df$std.beta = ifelse(plot_df$p.corr > .05, NA,plot_df$std.beta)
 #
-p02 = ggplot(plot_df) + geom_brain(atlas = aseg,aes(fill = std.beta),color="black")+
+p02 = ggplot(plot_df) + geom_brain(atlas = aseg,side = "coronal",aes(fill = std.beta),color="black")+
   #scale_fill_viridis_c(option = "cividis", direction = -1)+
   scale_fill_gradient2(low = "blue",mid = "white",high="red") +
   #labs(title="Regional volume loss") + 
   theme_void()
-p02 = p02+labs(fill="Cohen's d") +
+p02 = p02+labs(fill="Std. Beta") +
   theme(
     plot.title = element_markdown(),
     legend.title = element_markdown()
@@ -357,7 +357,7 @@ p03 = ggplot(plot_df) + geom_brain(atlas = dk,aes(fill = std.beta),color="black"
   scale_fill_gradient2(low = "blue",mid = "white",high="red") +
   #labs(title="Regional association between EDSS and volume") + 
   theme_void()
-p03 = p03+labs(fill="Cohen's d") +
+p03 = p03+labs(fill="Std. Beta") +
   theme(
     plot.title = element_markdown(),
     legend.title = element_markdown()
@@ -381,12 +381,12 @@ res = list_rbind(reslist)
 plot_df02 = merge(plot_df02,res,by="ROIs.region.")
 plot_df = plot_df02
 plot_df$std.beta = ifelse(plot_df$p > .05, NA,plot_df$std.beta)
-p04 = ggplot(plot_df) + geom_brain(atlas = aseg,aes(fill = std.beta),color="black")+
+p04 = ggplot(plot_df) + geom_brain(atlas = aseg,side = "coronal",aes(fill = std.beta),color="black")+
   #scale_fill_viridis_c(option = "cividis", direction = -1)+
   scale_fill_gradient2(low = "blue",mid = "white",high="red") +
   #labs(title="Regional association between EDSS and volume") + 
   theme_void()
-p04 = p04+labs(fill="Cohen's d") +
+p04 = p04+labs(fill="Std. Beta") +
   theme(
     plot.title = element_markdown(),
     legend.title = element_markdown()
@@ -416,9 +416,9 @@ ggsave(paste(savepath,"reg_plot.pdf",sep=""),plot1, width = 14, height = 6)
 #
 #
 # Now, the standardized plots
-age.plot = ggarrange(p01,p02,ncol=2,widths=c(2,.9),labels=c("a","b"))
+age.plot = ggarrange(p01,p02,ncol=2,widths=c(2,.5),labels=c("a","b"))
 age.plot = annotate_figure(age.plot, top = text_grob("Annual regional volume loss",face = "bold", size = 17))
-edss.plot = ggarrange(p03,p04,ncol=2,widths=c(2,.9),labels=c("c","d"))
+edss.plot = ggarrange(p03,p04,ncol=2,widths=c(2,.5),labels=c("c","d"))
 edss.plot = annotate_figure(edss.plot, top = text_grob("Associations of EDSS and regional brain volume",face = "bold", size = 17))
 plot1 = ggarrange(age.plot, edss.plot, nrow=2)
 ggsave(paste(savepath,"reg_plot_standardized.pdf",sep=""),plot1, width = 14, height = 6)
