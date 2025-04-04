@@ -120,6 +120,7 @@ colnames(dat) = gsub('.combat','',colnames(dat))
 return(dat)
 }
 df =  filter(df, !scanner %in% c(501, 702, 802, 803, 1409, 1410))
+OFAMS_N_SCANS = nrow(df)
 df0=df
 df = rbind(LC(msOSL),LC(na.omit(df)))
 #
@@ -355,12 +356,12 @@ for (i in 1:length(data_list)){
     #scale_fill_viridis_c(option = "cividis", direction = -1)+
     scale_fill_gradient2(low = "blue",mid = "white",high="red",limits = c(-0.7,0.1)) +
     #labs(title="Regional volume loss") + 
-    theme_void()
-  p1 = p1+labs(fill="Std.Coeff.") + #mm<sup>3</sup>/year
-    theme(
-      plot.title = element_markdown(),
-      legend.title = element_markdown()
-    )
+    theme_void() + theme(legend.position="none")
+  # p1 = p1+labs(fill="Std.Coeff.") + #mm<sup>3</sup>/year
+  #   theme(
+  #     plot.title = element_markdown(),
+  #     legend.title = element_markdown()
+  #   )
   # 3.1.2 Sub-Cortical #### #
   # subcortical: thalamus, pallidum, amygdala, hippocampus, putamen, accumbens area, and caudate nucleus
   ROIs = names(data_frame)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC|Cerebellum.Cortex"),names(data_frame))]
@@ -422,6 +423,8 @@ for (i in 1:length(data_list)){
 # 
 # 1) filter
 Nm = (lifespan %>% filter(session != 2 & session != 3 & diagnosis == "HC"))
+nrow(Nm)
+(lifespan %>% filter(diagnosis == "HC")) %>% nrow()
 Nm$TIV = Nm$EstimatedTotalIntraCranialVol/1000000 # transform into liters / dm3
 # df_list = list(Nm,df)
 # df_list[[1]]$session = 1
@@ -488,12 +491,12 @@ for (i in 1:length(lm_list)){
     #scale_fill_viridis_c(option = "cividis", direction = -1)+
     scale_fill_gradient2(low = "blue",mid = "white",high="red",limits = c(-0.7,0.1)) +
     #labs(title="Regional volume loss") + 
-    theme_void()
-  p1 = p1+labs(fill="Std.Coeff.") + #mm<sup>3</sup>/year
-    theme(
-      plot.title = element_markdown(),
-      legend.title = element_markdown()
-    )
+    theme_void() + theme(legend.position="none")
+  # p1 = p1+labs(fill="Std.Coeff.") + #mm<sup>3</sup>/year
+  #   theme(
+  #     plot.title = element_markdown(),
+  #     legend.title = element_markdown()
+  #   )
   # 3.1.2 Sub-Cortical #### #
   # subcortical: thalamus, pallidum, amygdala, hippocampus, putamen, accumbens area, and caudate nucleus
   ROIs = names(data_frame)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC|Cerebellum.Cortex"),names(data_frame))]
@@ -570,11 +573,12 @@ write.csv(file = "age_beta_standardized.csv",unstd)
 #
 #
 #
+
 # Key info to report ####
 # report the average ageing of participants in the longitudinal studies
-paste("OFAMS participants (N=85) were aged 38.9±8.3 (range: 19-58) years at baseline and 49.6±8.6 at the final follow-up, with 65.9% being females.")
+paste("OFAMS participants (N=85, scans=",OFAMS_N_SCANS,") were aged 38.9±8.3 (range: 19-58) years at baseline and 49.6±8.6 at the final follow-up, with 65.9% being females.")
 paste("The Oslo sample participants (N=", nrow(msOSL%>%filter(session==min(as.numeric(msOSL$session)))),
-      ") were, on average, aged ", 
+      ", scans=",nrow(msOSL),") were, on average, aged ", 
       msOSL %>% group_by(eid) %>% summarize(Age = min(age)) %>% reframe(M = round(mean(Age),1)),
       "±",
       msOSL %>% group_by(eid) %>% summarize(Age = min(age)) %>% reframe(M = round(sd(Age),1)),
@@ -590,7 +594,7 @@ paste("The Oslo sample participants (N=", nrow(msOSL%>%filter(session==min(as.nu
       round((table((msOSL %>% filter(session == 1))$sex)[1]/msOSL %>% filter(session == 1) %>% nrow)*100,1),
       "% being females.",sep="")
 paste("The healthy control ageing sample participants (N=", nrow(UKBlong%>%filter(session==min(as.numeric(UKBlong$session)))),
-      ") were, on average, aged ", 
+      ", scans=",nrow(UKBlong),") were, on average, aged ", 
       UKBlong %>% group_by(eid) %>% summarize(Age = min(age)) %>% reframe(M = round(mean(Age),1)),
       "±",
       UKBlong %>% group_by(eid) %>% summarize(Age = min(age)) %>% reframe(M = round(sd(Age),1)),
@@ -605,6 +609,24 @@ paste("The healthy control ageing sample participants (N=", nrow(UKBlong%>%filte
       " at the single follow-up, with ",
       round((table((UKBlong %>% filter(session == 1))$sex)[1]/UKBlong %>% filter(session == 1) %>% nrow)*100,1),
       "% being females.",sep="")
+lifespan$sex = factor(lifespan$sex)
+levels(lifespan$sex) = c(0,0,1,0,0,1,1)
+paste("Finally, the cross-sectional lifespan sample (N=", nrow((lifespan%>%filter(diagnosis =="HC" & !session == 2 | diagnosis =="HC" & !session == 3))),
+      ") were, on average, aged ", 
+      lifespan%>%filter(diagnosis =="HC" & !session == 2 | diagnosis =="HC" & !session == 3) %>% summarize(Age = round(mean(na.omit(age)),2)),
+      "±",
+      lifespan%>%filter(diagnosis =="HC" & !session == 2 | diagnosis =="HC" & !session == 3) %>% summarize(Age = round(sd(na.omit(age)),2)),
+      " (range: ",
+      lifespan%>%filter(diagnosis =="HC" & !session == 2 | diagnosis =="HC" & !session == 3) %>% summarize(Age = min(na.omit(age))),
+      "-",
+      lifespan%>%filter(diagnosis =="HC" & !session == 2 | diagnosis =="HC" & !session == 3) %>% summarize(Age = max(na.omit(age))),
+      ") years,with ",
+      round((table((lifespan%>%filter(diagnosis =="HC" & !session == 2 | diagnosis =="HC" & !session == 3) )$sex)[1]/lifespan%>%filter(diagnosis =="HC" & !session == 2 | diagnosis =="HC" & !session == 3) %>% nrow)*100,1),
+      "% being females.",sep="")
+#
+# some demographic background, here the age distributions of pwMS vs UKB:
+# hist(df$age,xlab = "MS Age", main = "")
+# hist(UKBlong$age, xlab = "UKB Age", main = "")
 #
 #
 # msOSL %>% group_by(eid) %>% summarize(span = max(age)-min(age)) %>% summarize(ISI = mean(span))
@@ -622,9 +644,122 @@ paste("Figure X. Ageing effects in relapsing-remitting multiple sclerosis and ag
 #
 # We also highlight the strongest effects for the results section
 unstd %>% group_by(data) %>%filter(age.beta == min(age.beta))
+unstd %>% group_by(data) %>%filter(ROIs.region. == "Left.Thalamus.Proper" | ROIs.region. == "Right.Thalamus.Proper")
+unstd %>% group_by(data) %>%filter(ROIs.region. == "Left.Putamen" | ROIs.region. == "Right.Putamen")
+unstd %>% group_by(data) %>%filter(ROIs.region. == "lh_superiorfrontal_volume" | ROIs.region. == "rh_superiorfrontal_volume")
+#
 # we get a good idea of the strongest effects in MS: putamen, thalamus, superior frontal cortex
 # HC age-associations highlight frontal and temporal areas, as well as cerebellum, thalamus and putamen
-unstd %>% filter(data=="OFAMS") %>% arrange((age.beta))
+#
+# Check also the ROIs defined by significant effects which replicate across MS datasets
+signi = (unstd %>% filter(data=="OFAMS" & p.corr < 0.05))$ROIs.region.[
+  (unstd %>% filter(data=="OFAMS" & p.corr < 0.05))$ROIs.region. %in%
+  (unstd %>% filter(data=="Oslo" & p.corr < 0.05))$ROIs.region.]
+#
+# show which ROIs present in both hemisphers (here indicated by 2)
+table(gsub("Right.","",gsub("Left.","",gsub("lh_","",gsub("rh_","",signi)))))
+#
+#
+# Make a function for the estimation of the standard error (SE) and extraction of the effect size (ES)
+getit = function(the_data_frame,variable){
+  fun=formula(paste(variable,"~age+sex+EstimatedTotalIntraCranialVol+(1|eid)"))
+  the_data_frame[variable] = scale(the_data_frame[variable])
+  the_data_frame$EstimatedTotalIntraCranialVol = scale(the_data_frame$EstimatedTotalIntraCranialVol)
+  the_data_frame$age = scale(the_data_frame$age)
+  model = lmer(fun,the_data_frame)
+  ES = summary(model)$coefficients[2] # coeff
+  SE = summary(model)$coefficients[2,2] # se
+  return(c(ES,SE))
+}
+# Make another function for the estimation of differences in model coefficients
+# by Clogg, C. C., Petkova, E., & Haritou, A. (1995). Statistical methods for comparing regression coefficients between models. American Journal of Sociology, 100(5), 1261-1293. 
+Zdiff = function(ES1,ES2,SE1,SE2){
+  Z = (ES1-ES2)/(sqrt( (SE1^2) + (SE2^2) ))
+  return(Z)
+}
+ES_MS = ES_UKB = Zscores = c()
+for (i in 1:length(signi)){
+  Zscores[i]=Zdiff(getit(df2,signi[i])[1],getit(UKBlong,signi[i])[1],getit(df2,signi[i])[2], getit(UKBlong,signi[i])[2])
+  ES_UKB[i] = getit(UKBlong,signi[i])[1]
+  ES_MS[i] = getit(df2,signi[i])[1]
+}
+Zres = data.frame(ROI=signi,Z=Zscores,p=pnorm(Zscores, mean = 0, sd = 1, lower.tail = TRUE), ES_UKB, ES_MS)
+# show significant ones only
+Zres %>% filter(p<.05)
+ntab = Zres #%>% filter(p<.05)
+# consider cortical stats only
+ntab = ntab %>% filter(grepl("volume",ROI))
+ntab = ntab[order(ntab$ROI),] #ROIntab = ntab[order(ntab$ROI),] # order the data frame
+ntab$hemi = ifelse(grepl("lh_",ntab$ROI)==T,"left","right")
+ntab$region = (brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",ntab$ROI)][1:34])[1:nrow(ntab)]
+
+ntab2 = ntab%>%filter(hemi=="right")
+ntab2$ROI = gsub("rh_","",ntab2$ROI)
+ntab2$region = (brain_regions(dk)[gsub("lh_","",brain_labels(dk)) %in% gsub("_volume","",ntab2$ROI)][1:34])[1:nrow(ntab2)]
+ntab$region = c(na.omit(ntab)$region, ntab2$region)
+
+#ntab2$region = (brain_regions(dk)[(brain_labels(dk) %in% gsub("_volume","",ntab2$ROI))[35:70]])#[1:nrow(ntab2)]
+
+Zp = ggplot(ntab) + geom_brain(atlas = dk, aes(fill = Z),color="black")+
+  #scale_fill_viridis_c(option = "cividis", direction = -1)+
+  scale_fill_gradient2(low = "blue",mid = "white",high="red") +
+  #labs(title="Regional volume loss") + 
+  theme_void()
+ggsave(paste(savepath,"Zmap.pdf",sep=""),Zp, width = 12, height = 5)
+#
+# Check whether thalamus and superior frontal cortex degenerate faster in pwMS compared to HC
+# !! 
+# For simplicity, we add the volumes of our ROIs into a single volume score
+# !!
+#
+# Z1 = Zdiff(getit(df2,"Thalamus")[1],getit(UKBlong,"Thalamus")[1],getit(df2,"Thalamus")[2], getit(UKBlong,"Thalamus")[2])
+#
+#
+#
+# !! 
+# For simplicity, we add the volumes of our ROIs into a single volume score for the top-associations
+# !!
+#
+#
+# 
+# df2$Thalamus = df2$Left.Thalamus.Proper+df2$Right.Thalamus.Proper
+# UKBlong$Thalamus = UKBlong$Left.Thalamus.Proper+UKBlong$Right.Thalamus.Proper
+# Z1 = Zdiff(getit(df2,"Thalamus")[1],getit(UKBlong,"Thalamus")[1],getit(df2,"Thalamus")[2], getit(UKBlong,"Thalamus")[2])
+# #
+# # superior frontal cortex
+# df2$SFC = df2$lh_superiorfrontal_volume+df2$rh_superiorfrontal_volume
+# UKBlong$SFC = UKBlong$lh_superiorfrontal_volume+UKBlong$rh_superiorfrontal_volume
+# Z2 = Zdiff(getit(df2,"SFC")[1],getit(UKBlong,"SFC")[1],getit(df2,"SFC")[2], getit(UKBlong,"SFC")[2])
+# #
+# paste("MS vs HC Thalamic degeneration Z = ",round(Z1,3),", p = ", round(pnorm(Z1, mean = 0, sd = 1, lower.tail = TRUE),3),sep="")
+# paste("MS vs HC Superior Frontal Cortex degeneration Z = ",round(Z2,3),", p = ", pnorm(Z2, mean = 0, sd = 1, lower.tail = TRUE),sep="")
+# #
+# #
+# # Plot age associations in these regions
+# plotfunc = function(the_data_frame, variable, ylim,data_decriptor){
+#   fun=formula(paste(variable,"~age+sex+EstimatedTotalIntraCranialVol+(1|eid)"))
+#   mod=lmer(fun,the_data_frame)
+#   plot = plot(Effect("age",mod),xlab = "Age",ylab=variable,
+#               main=paste("Adjusted association of Age and ", variable, " volume in ", data_decriptor,sep=""),
+#               xlim = c(20,70),ylim = ylim)
+#   return(plot)
+# }
+# key_ass = ggarrange(plotfunc(df2,"Thalamus",c(13000,17000),"MS"),plotfunc(UKBlong,"Thalamus",c(13000,17000),"HC"),
+#           plotfunc(df2,"SFC",c(35000,50000),"HC"),plotfunc(UKBlong,"SFC",c(35000,50000),"MS"))
+# ggsave(paste(savepath,"key_age_ROI_associations.pdf",sep=""),key_ass, width = 12, height = 10)
+# 
+
+
+
+
+
+
+
+a
+Continue here
+# NOW FIX THE LEGENDS IN FIG 1, aka age_plot_standardized.pdf
+# THEN ESTIMATE % change!
+# ALSO CHECK ### ALL #### SIG REGIONS AND COMPARE IF THEY REPLICATE
 
 
 
