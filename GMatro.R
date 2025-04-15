@@ -39,6 +39,11 @@ savepath = "/Users/max/Documents/Local/MS/GMresults/" # define results/save/oput
 #
 # 0. Prep ####
 # load packages and install if not already installed
+# install.packages("devtools")
+# library(devtools)
+# devtools::install_github("jcbeer/longCombat")
+# install_github("jfortin1/neuroCombatData")
+# install_github("jfortin1/neuroCombat_Rpackage")
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(tidyverse,lme4,lmerTest,effects,effectsize,interactions,gamm4,
                ggseg,ggtext,ggpubr,MuMIn,dplyr,ggplot2,standardize,longCombat,
@@ -46,15 +51,27 @@ pacman::p_load(tidyverse,lme4,lmerTest,effects,effectsize,interactions,gamm4,
 # data
 lifespan = read.csv("/Users/max/Documents/Local/Data/Lifespan/cortical_subcortical.csv")
 df = read.csv("/Users/max/Documents/Local/MS/data/final_dat_subc.csv")
-msOSL = read.csv("/Users/max/Documents/Local/Data/Oslo/MS_Einar.csv")
-subOSL = read.delim("/Users/max/Documents/Local/Data/Lifespan/MS_subcortical.txt")
+OSLl  = read.delim("/Users/max/Documents/Local/Data/Oslo/lh.volume.UKBB.txt")
+OSLr  = read.delim("/Users/max/Documents/Local/Data/Oslo/rh.volume.UKBB.txt")
+OSLsub  = read.delim("/Users/max/Documents/Local/Data/Oslo/subcorticalstats.UKBB.txt")
+#msOSL = read.csv("/Users/max/Documents/Local/Data/Oslo/MS_Einar.csv")
+#subOSL = read.delim("/Users/max/Documents/Local/Data/Lifespan/MS_subcortical.txt")
 demoOSL = read.csv("/Users/max/Documents/Local/Data/Oslo/Oslo_demographics.csv")
 # standardize and join datasets
+colnames(OSLsub)[1] = colnames(OSLr)[1] = colnames(OSLl)[1] = "eid"
+OSLl = OSLl %>% filter(grepl("long",eid))
+OSLl$eid = substr(OSLl$eid,1,10)
+OSLr = OSLr %>% filter(grepl("long",eid))
+OSLr$eid = substr(OSLr$eid,1,10)
+OSLsub = OSLsub %>% filter(grepl("long",eid))
+OSLsub$eid = substr(OSLsub$eid,1,10)
+msOSL = merge(OSLr,OSLl %>% select(-eTIV,-BrainSegVolNotVent),by="eid")
+msOSL = merge(msOSL,OSLsub%>% select(-BrainSegVolNotVent),by="eid")
 df$session = df$session+1
-names(subOSL)[names(subOSL) == "Measure.volume"] = "eid"
-subOSL$eid = gsub("/","",subOSL$eid)
-msOSL = merge(msOSL, subOSL, by = c("eid"))
-names(demoOSL)[names(demoOSL) == "Individual_TimePoint"] = "eid"
+#names(subOSL)[names(subOSL) == "Measure.volume"] = "eid"
+#subOSL$eid = gsub("/","",subOSL$eid)
+#msOSL = merge(msOSL, subOSL, by = c("eid"))
+names(demoOSL)[names(demoOSL) == "Individual_TimePoint"] = "eid" 
 #
 #
 #
@@ -69,8 +86,11 @@ demoOSL = demoOSL %>% filter(Subtype_MS == "RRMS")
 #
 #
 #
-msOSL = merge(msOSL, demoOSL %>% select(EDSS, eid), by = c("eid"))
+msOSL = merge(msOSL, demoOSL %>% select(eid,EDSS,Scanner, Gender, Age), by = c("eid"))
 names(msOSL)[names(msOSL) == "EDSS"] = "edss"
+names(msOSL)[names(msOSL) == "Scanner"] = "scanner"
+names(msOSL)[names(msOSL) == "Gender"] = "sex"
+names(msOSL)[names(msOSL) == "Age"] = "age"
 df$scanner = ifelse(df$eid > 100 & df$eid < 200, "a", df$eid)
 df$scanner = ifelse(df$eid > 200 & df$eid < 300, "b", df$eid)
 df$scanner = ifelse(df$eid > 300 & df$eid < 400, "c", df$eid)
@@ -90,8 +110,8 @@ df$scanner = ifelse(df$eid > 1600, "p", df$eid)
 df$data = "OFAMS"
 df$sex = factor(df$sex) # make sex a factor
 levels(df$sex) = c("M","F")
-names(df)[names(df) == "Left.Thalamus"] = "Left.Thalamus.Proper"
-names(df)[names(df) == "Right.Thalamus"] = "Right.Thalamus.Proper"
+# names(df)[names(df) == "Left.Thalamus"] = "Left.Thalamus.Proper"
+# names(df)[names(df) == "Right.Thalamus"] = "Right.Thalamus.Proper"
 #df$session = as.numeric(factor(df$session))
 msOSL = msOSL[,names(msOSL)[names(msOSL) %in% names(df)]]
 msOSL$session = ifelse(grepl("_01",msOSL$eid) == T, 1,0) + ifelse(grepl("_02",msOSL$eid) == T, 2,0) + 
@@ -100,10 +120,13 @@ msOSL$session = ifelse(grepl("_01",msOSL$eid) == T, 1,0) + ifelse(grepl("_02",ms
   ifelse(grepl("_07",msOSL$eid) == T, 7,0)+ ifelse(grepl("_08",msOSL$eid) == T, 8,0) +
   ifelse(grepl("_09",msOSL$eid) == T, 9,0)
 msOSL$eid = substr(msOSL$eid,1,7)
-df = df[,names(df)[names(df) %in% names(msOSL)]]
+msOSL$data = "MS"
+#df = df[,names(df)[names(df) %in% names(msOSL)]]
 
 # longitudinal Combat
-LC = function(dat){covars = dat %>% dplyr::select(sex,age,edss,data)
+LC = function(dat){covars = dat %>% dplyr::select(sex,edss,data,age)
+# sesh = dat$session
+# dat = dat %>% select(-session)
 features = c(dat %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
              dat %>% select(starts_with("rh") & ends_with("volume")) %>% names(),
              names(dat)[grepl(c("halamus|allidum|mygdala|
@@ -111,22 +134,32 @@ features = c(dat %>% select(starts_with("lh") & ends_with("volume")) %>% names()
                                 CC|Cerebellum.Cortex"),names(dat))],
              dat %>% select(TotalGrayVol, EstimatedTotalIntraCranialVol,
                             ends_with("Hippocampus")) %>% names())
-dat = longCombat(idvar = "eid", timevar = "age", batchvar = "scanner", 
+dat = longCombat(idvar = "eid", timevar = "session", batchvar = "scanner", 
                  features = features,
                  formula = "age + sex", ranef = "(1|eid)", data = dat)
 dat = dat$data_combat
 dat = cbind(covars,dat)
 colnames(dat) = gsub('.combat','',colnames(dat))
+# dat$session = sesh
 return(dat)
 }
-df =  filter(df, !scanner %in% c(501, 702, 802, 803, 1409, 1410))
+#
+#
+#
+#
+df =  filter(df, !scanner %in% c(501, 702, 802, 803, 1409, 1410,103, 104, 207, 214, 216, 303, 601, 701, 703, 708, 709, 801, 806, 808, 809, 813, 901, 1202, 1412, 1413, 1414))
+msOSL =  filter(msOSL, !scanner %in% c("NMR1"))
 OFAMS_N_SCANS = nrow(df)
+msOSL$scanner = as.numeric(factor(msOSL$scanner))
+msOSL$sex = ifelse(msOSL$sex == "male","M",msOSL$sex)
+msOSL$sex = ifelse(msOSL$sex == "female","F",msOSL$sex)
 df0=df
 df = rbind(LC(msOSL),LC(na.omit(df)))
 #
 # For analysis of both datasets together, the harmonisation must be made together
+msOSL = msOSL[,names(msOSL)[names(msOSL) %in% names(df0)]]
+df0 = df0[,names(df0)[names(df0) %in% names(msOSL)]]
 df2 = LC(rbind(msOSL,na.omit(df0)))
-#
 #
 #
 # note: from here onwards, findings are being examined in OFAMS data and then replicated in independent Oslo data
@@ -221,101 +254,102 @@ df2$TotalVol = df2$TotalGrayVol/1000000
 # contains sex,age,vol, no interaction effects
 # 3. Regional age associations ####
   # 3.1 Unstandardized ####
-ROIs = names(df)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC|Cerebellum.Cortex"),names(df))]
-change = function(data_frame){
-  # 3.1.1 Cortical #### #
-ROIs = c(data_frame %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
-data_frame %>% select(starts_with("rh") & ends_with("volume")) %>% names())
-n_cort_ROIs = length(ROIs)
-reslist=list()
-for(region in 1:length(ROIs)){
-  f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
-  mod = lmer(f,data_frame)
-  age.beta = summary(mod)$coefficients[4]
-  SE = summary(mod)$coefficients[4,2]
-  t = summary(mod)$coefficients[4,4]
-  p = summary(mod)$coefficients[4,5]
-  reslist[[region]] = data.frame(ROIs[region],age.beta,SE,t,p)
-}
-res = list_rbind(reslist)
-res$p.corr = (length(res$p)+14)*res$p # Bonferroni correction considering also the 14 subcortical areas
-plot_df = res
-plot_df = plot_df[order(plot_df$ROIs.region.),] # order the data frame
-plot_df$region = brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",plot_df$ROIs.region.)][1:34]
-plot_df$hemi = ifelse(grepl("lh_",plot_df$ROIs.region.)==T,"left","right")
-plot_df01 = plot_df
-plot_df$age.beta = ifelse(plot_df$p.corr > .05, NA,plot_df$age.beta)
-p1 = ggplot(plot_df) + geom_brain(atlas = dk,aes(fill = age.beta),color="black")+
-  #scale_fill_viridis_c(option = "cividis", direction = -1)+
-  scale_fill_gradient2(low = "blue",mid = "white",high="red") +
-  #labs(title="Regional volume loss") + 
-  theme_void()
-p1 = p1+labs(fill="mm<sup>3</sup>") + #mm<sup>3</sup>/year
-  theme(
-    plot.title = element_markdown(),
-    legend.title = element_markdown()
-  )
-# 3.1.2 Sub-Cortical #### #
-# subcortical: thalamus, pallidum, amygdala, hippocampus, putamen, accumbens area, and caudate nucleus
-ROIs = names(data_frame)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC|Cerebellum.Cortex"),names(data_frame))]
-ROIs = ROIs[!grepl(c("CC"),ROIs)]
-ROIs = ROIs[order(ROIs)]
-reslist=list()
-for(region in 1:length(ROIs)){
-  f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
-  mod = lmer(f,data_frame)
-  age.beta = summary(mod)$coefficients[4]
-  SE = summary(mod)$coefficients[4,2]
-  t = summary(mod)$coefficients[4,4]
-  p = summary(mod)$coefficients[4,5]
-  reslist[[region]] = data.frame(ROIs[region],age.beta,SE,t,p)
-}
-res2 = list_rbind(reslist)
-res2$p.corr = (length(res2$p)+(length(c(data_frame %>% dplyr::select(starts_with("lh") & ends_with("volume")) %>% names(),
-                                      data_frame %>% dplyr::select(starts_with("rh") & ends_with("volume")) %>% names())
-)))*res2$p # Bonferroni correction considering all ROIs
-#cerebellum = res2[grepl(".Cerebellum.Cortex",res2$ROIs.region.),]
-res=rbind(res,res2)
-res2 = res2[!grepl(".Cerebellum.Cortex",res2$ROIs.region.),]
-plot_df1 = res2
-plot_df1 = plot_df1[order(plot_df1$ROIs.region.),] # order the data frame
-plot_df1$label = brain_labels(aseg)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate"),brain_labels(aseg))]
-#brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",plot_df1$ROIs.region.)][1:34]
-coronal_brain_aseg = as_tibble(aseg) %>%
-  filter(side == "coronal", !grepl("\\d", label))
-#
-# Note: the painful steps above leading to this merger are crucial.
-# This will be useful for later use of ggseg (aseg). Enjoy!
-plot_df1 = merge(plot_df1,coronal_brain_aseg,by="label") # merge the data with the atlas labels
-plot_df02 = plot_df1
-#
-plot_df1$age.beta = ifelse(plot_df1$p.corr > .05, NA,plot_df1$age.beta)
-#
-p1.1 = ggplot(plot_df1) + geom_brain(atlas = aseg, side = "coronal",aes(fill = age.beta),color="black")+
-  #scale_fill_viridis_c(option = "cividis", direction = -1)+
-  scale_fill_gradient2(low = "blue",mid = "white",high="red") +
-  #labs(title="Regional volume loss") + 
-  theme_void()
-p1.1 = p1.1+labs(fill="mm<sup>3</sup>") +
-  theme(
-    plot.title = element_markdown(),
-    legend.title = element_markdown()
-  )
-p = ggarrange(p1,p1.1,nrow=1,widths=c(2,.5))
-return(list(res,p))
-}
-#
-# Apply the function which was established above
-#
-df = data.frame(df)
-age.plot = ggarrange(change(df%>%dplyr::filter(data == "MS"))[[2]],change(df%>%filter(data == "OFAMS"))[[2]],nrow=2,labels=c("a","b"))
-age.plot = annotate_figure(age.plot, top = text_grob("Annual regional volume loss",face = "bold", size = 17))
-ggsave(paste(savepath,"age_plot_unstandardized.pdf",sep=""),age.plot, width = 14, height = 6)
-#safe table of the results
-unstd = rbind(change(df%>%filter(data == "MS"))[[1]],change(df%>%filter(data == "OFAMS"))[[1]])
-unstd$data = c(replicate(nrow(unstd)/2,"Oslo"),replicate(nrow(unstd)/2,"OFAMS"))
-write.csv(file = paste(savepath,"age_beta_unstandardized.csv",sep=""),unstd)
-#
+# ROIs = names(df)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC|Cerebellum.Cortex"),names(df))]
+# change = function(data_frame){
+#   # 3.1.1 Cortical #### #
+# ROIs = c(data_frame %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
+# data_frame %>% select(starts_with("rh") & ends_with("volume")) %>% names())
+# n_cort_ROIs = length(ROIs)
+# reslist=list()
+# for(region in 1:length(ROIs)){
+#   f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
+#   mod = lmer(f,data_frame)
+#   age.beta = summary(mod)$coefficients[4]
+#   SE = summary(mod)$coefficients[4,2]
+#   t = summary(mod)$coefficients[4,4]
+#   p = summary(mod)$coefficients[4,5]
+#   reslist[[region]] = data.frame(ROIs[region],age.beta,SE,t,p)
+# }
+# res = list_rbind(reslist)
+# res$p.corr = (length(res$p)+14)*res$p # Bonferroni correction considering also the 14 subcortical areas
+# plot_df = res
+# plot_df = plot_df[order(plot_df$ROIs.region.),] # order the data frame
+# plot_df$region = brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",plot_df$ROIs.region.)][1:34]
+# plot_df$hemi = ifelse(grepl("lh_",plot_df$ROIs.region.)==T,"left","right")
+# plot_df01 = plot_df
+# plot_df$age.beta = ifelse(plot_df$p.corr > .05, NA,plot_df$age.beta)
+# p1 = ggplot(plot_df) + geom_brain(atlas = dk,aes(fill = age.beta),color="black")+
+#   #scale_fill_viridis_c(option = "cividis", direction = -1)+
+#   scale_fill_gradient2(low = "blue",mid = "white",high="red") +
+#   #labs(title="Regional volume loss") + 
+#   theme_void()
+# p1 = p1+labs(fill="mm<sup>3</sup>") + #mm<sup>3</sup>/year
+#   theme(
+#     plot.title = element_markdown(),
+#     legend.title = element_markdown()
+#   )
+# # 3.1.2 Sub-Cortical #### #
+# # subcortical: thalamus, pallidum, amygdala, hippocampus, putamen, accumbens area, and caudate nucleus
+# ROIs = names(data_frame)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC|Cerebellum.Cortex"),names(data_frame))]
+# ROIs = ROIs[!grepl(c("CC"),ROIs)]
+# ROIs = ROIs[order(ROIs)]
+# reslist=list()
+# for(region in 1:length(ROIs)-2){
+#   f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
+#   mod = lmer(f,data_frame)
+#   age.beta = summary(mod)$coefficients[4]
+#   SE = summary(mod)$coefficients[4,2]
+#   t = summary(mod)$coefficients[4,4]
+#   p = summary(mod)$coefficients[4,5]
+#   reslist[[region]] = data.frame(ROIs[region],age.beta,SE,t,p)
+# }
+# res2 = list_rbind(reslist)
+# res2$p.corr = (length(res2$p)+(length(c(data_frame %>% dplyr::select(starts_with("lh") & ends_with("volume")) %>% names(),
+#                                       data_frame %>% dplyr::select(starts_with("rh") & ends_with("volume")) %>% names())
+# )))*res2$p # Bonferroni correction considering all ROIs
+# #cerebellum = res2[grepl(".Cerebellum.Cortex",res2$ROIs.region.),]
+# res=rbind(res,res2)
+# res2 = res2[!grepl(".Cerebellum.Cortex",res2$ROIs.region.),]
+# plot_df1 = res2
+# plot_df1 = plot_df1[order(plot_df1$ROIs.region.),] # order the data frame
+# plot_df1$label = brain_labels(aseg)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate"),brain_labels(aseg))]
+# #brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",plot_df1$ROIs.region.)][1:34]
+# coronal_brain_aseg = as_tibble(aseg) %>%
+#   filter(side == "coronal", !grepl("\\d", label))
+# #
+# # Note: the painful steps above leading to this merger are crucial.
+# # This will be useful for later use of ggseg (aseg). Enjoy!
+# plot_df1 = merge(plot_df1,coronal_brain_aseg,by="label") # merge the data with the atlas labels
+# plot_df02 = plot_df1
+# #
+# plot_df1$age.beta = ifelse(plot_df1$p.corr > .05, NA,plot_df1$age.beta)
+# #
+# p1.1 = ggplot(plot_df1) + geom_brain(atlas = aseg, side = "coronal",aes(fill = age.beta),color="black")+
+#   #scale_fill_viridis_c(option = "cividis", direction = -1)+
+#   scale_fill_gradient2(low = "blue",mid = "white",high="red") +
+#   #labs(title="Regional volume loss") + 
+#   theme_void()
+# p1.1 = p1.1+labs(fill="mm<sup>3</sup>") +
+#   theme(
+#     plot.title = element_markdown(),
+#     legend.title = element_markdown()
+#   )
+# p = ggarrange(p1,p1.1,nrow=1,widths=c(2,.5))
+# return(list(res,p))
+# }
+# #
+# # Apply the function which was established above
+# #
+# df = data.frame(df)
+# names(df)
+# age.plot = ggarrange(change(df%>%dplyr::filter(data == "MS"))[[2]],change(df%>%filter(data == "OFAMS"))[[2]],nrow=2,labels=c("a","b"))
+# age.plot = annotate_figure(age.plot, top = text_grob("Annual regional volume loss",face = "bold", size = 17))
+# ggsave(paste(savepath,"age_plot_unstandardized.pdf",sep=""),age.plot, width = 14, height = 6)
+# #safe table of the results
+# unstd = rbind(change(df%>%filter(data == "MS"))[[1]],change(df%>%filter(data == "OFAMS"))[[1]])
+# unstd$data = c(replicate(nrow(unstd)/2,"Oslo"),replicate(nrow(unstd)/2,"OFAMS"))
+# write.csv(file = paste(savepath,"age_beta_unstandardized.csv",sep=""),unstd)
+# #
 #
 # create output table with all values in it 
 #age.tab = rbind(plot_df01 %>% select(region,hemi,age.beta,SE,std.beta,CI_low,CI_high, t,p,p.corr),plot_df02 %>% select(region,hemi,age.beta,SE,std.beta,CI_low,CI_high,t,p,p.corr))
@@ -328,12 +362,13 @@ UKBlong$TIV = UKBlong$EstimatedTotalIntraCranialVol
 UKBlong$sex = ifelse(ifelse(UKBlong$sex == "Female",0,UKBlong$sex) == "Male",1,ifelse(UKBlong$sex == "Female",0,UKBlong$sex))
 plist = the_reslist = list()
 data_list = list(df%>%filter(data == "MS"),df%>%filter(data == "OFAMS"),df2, UKBlong)
+
 for (i in 1:length(data_list)){
   data_frame = data_list[[i]]
   # 3.1.1 Cortical #### #
   ROIs = c(data_frame %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
            data_frame %>% select(starts_with("rh") & ends_with("volume")) %>% names())
-  n_cort_ROIs = length(ROIs)
+  #n_cort_ROIs = length(ROIs)
   reslist=list()
   for(region in 1:length(ROIs)){
     f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
@@ -368,7 +403,7 @@ for (i in 1:length(data_list)){
   ROIs = ROIs[!grepl(c("CC"),ROIs)]
   ROIs = ROIs[order(ROIs)]
   reslist=list()
-  for(region in 1:length(ROIs)){
+  for(region in 1:(length(ROIs))){
     f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
     mod = lmer(f,data_frame)
     age.beta = effectsize::standardize_parameters(mod)$Std_Coefficient[4]
@@ -396,7 +431,7 @@ for (i in 1:length(data_list)){
   plot_df1 = merge(plot_df1,coronal_brain_aseg,by="label") # merge the data with the atlas labels
   plot_df02 = plot_df1
   #
-  plot_df1$age.beta = ifelse(plot_df1$p.corr > .05, NA,plot_df1$age.beta)
+  plot_df1$age.beta = ifelse(plot_df1$p > .05, NA,plot_df1$age.beta)
   #
   p1.1 = ggplot(plot_df1) + geom_brain(atlas = aseg, side = "coronal",aes(fill = age.beta),color="black")+
     #scale_fill_viridis_c(option = "cividis", direction = -1)+
@@ -440,7 +475,7 @@ covars$data = as.numeric(factor(Nm$data))
 Nm = neuroCombat(t(Nm%>%dplyr::select(EstimatedTotalIntraCranialVol,starts_with("Left"),starts_with("Right"), starts_with("lh"),starts_with("rh"))),batch=as.numeric(factor(Nm$scanner)),mod=model.matrix(~covars$age+covars$sex), mean.only = T)
 Nm = data.frame(t(Nm$dat.combat))
 Nm = cbind(covars,Nm)
-
+#
 # 3) match age span
 Nm$datasets = datasets
 Nm = Nm %>% filter(age > min(df$age) & age < max(df$age))
@@ -469,7 +504,7 @@ for (i in 1:length(lm_list)){
   # 3.1.1 Cortical #### #
   ROIs = c(data_frame %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
            data_frame %>% select(starts_with("rh") & ends_with("volume")) %>% names())
-  n_cort_ROIs = length(ROIs)
+  #n_cort_ROIs = length(ROIs)
   reslist=list()
   for(region in 1:length(ROIs)){
     f = formula(paste(ROIs[region],"~EstimatedTotalIntraCranialVol+sex+age"))
@@ -574,7 +609,7 @@ write.csv(file = "age_beta_standardized.csv",unstd)
 #
 #
 #
-
+#
 # Key info to report ####
 # report the average ageing of participants in the longitudinal studies
 paste("OFAMS participants (N=85, scans=",OFAMS_N_SCANS,") were aged 38.9±8.3 (range: 19-58) years at baseline and 49.6±8.6 at the final follow-up, with 65.9% being females.")
@@ -650,9 +685,17 @@ paste("Figure X. Ageing effects in relapsing-remitting multiple sclerosis and ag
 #
 # We also highlight the strongest effects for the results section
 unstd %>% group_by(data) %>%filter(age.beta == min(age.beta))
-unstd %>% group_by(data) %>%filter(ROIs.region. == "Left.Thalamus.Proper" | ROIs.region. == "Right.Thalamus.Proper")
-unstd %>% group_by(data) %>%filter(ROIs.region. == "Left.Putamen" | ROIs.region. == "Right.Putamen")
+#unstd %>% group_by(data) %>%filter(ROIs.region. == "Left.Thalamus.Proper" | ROIs.region. == "Right.Thalamus.Proper")
+#unstd %>% group_by(data) %>%filter(ROIs.region. == "Left.Putamen" | ROIs.region. == "Right.Putamen")
 unstd %>% group_by(data) %>%filter(ROIs.region. == "lh_superiorfrontal_volume" | ROIs.region. == "rh_superiorfrontal_volume")
+unstd %>% group_by(data) %>%filter(ROIs.region. == "lh_rostralmiddlefrontal_volume" | ROIs.region. == "rh_rostralmiddlefrontal_volume")
+unstd %>% group_by(data) %>%filter(ROIs.region. == "lh_parsorbitalis_volume" | ROIs.region. == "rh_parsorbitalis_volume")
+unstd %>% group_by(data) %>%filter(ROIs.region. == "lh_parstriangularis_volume" | ROIs.region. == "rh_parstriangularis_volume")
+
+#
+# MEDIAN EFFECTS for in-text presentation
+unstd%>%group_by(data)%>%summarise(Md=median(age.beta),MAD=mad(age.beta))
+#
 #
 # we get a good idea of the strongest effects in MS: putamen, thalamus, superior frontal cortex
 # HC age-associations highlight frontal and temporal areas, as well as cerebellum, thalamus and putamen
@@ -664,6 +707,10 @@ signi = (unstd %>% filter(data=="OFAMS" & p.corr < 0.05))$ROIs.region.[
 #
 # show which ROIs present in both hemisphers (here indicated by 2)
 table(gsub("Right.","",gsub("Left.","",gsub("lh_","",gsub("rh_","",signi)))))
+
+# Present results in-text
+unstd[unstd$ROIs.region. %in% signi,] %>% filter(data == "Oslo" & p.corr < 0.05) %>% arrange(age.beta)
+unstd[unstd$ROIs.region. %in% signi,] %>% filter(data == "OFAMS" & p.corr < 0.05) %>% arrange(age.beta)
 #
 #
 # Make a function for the estimation of the standard error (SE) and extraction of the effect size (ES)
@@ -718,12 +765,10 @@ ntab$region = (brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",ntab$RO
 ntab2 = ntab%>%filter(hemi=="right")
 ntab2$ROI = gsub("rh_","",ntab2$ROI)
 ntab2$region = (brain_regions(dk)[gsub("lh_","",brain_labels(dk)) %in% gsub("_volume","",ntab2$ROI)][1:34])[1:nrow(ntab2)]
-ntab$region = c(na.omit(ntab)$region, ntab2$region)
-ntab$Z = ifelse(ntab$p>=0.05,ntab$Z=0,ntab$Z)
+ntab$region = c((na.omit(ntab))$region, ntab2$region)
+#ntab$Z = ifelse(ntab$p>=0.05,0,ntab$Z)
 return(ntab)
 }
-
-
 ZpOSL = ggplot(fix_table(Zres_Oslo)) + geom_brain(atlas = dk, aes(fill = Z),color="black")+
   scale_fill_gradient2(low = "blue",mid = "white",high="red") +
   theme_void()
@@ -739,7 +784,18 @@ Zmap = annotate_figure(Zmap, top = text_grob("Ageing rates in MS compared to 20 
 ggsave(paste(savepath,"Zmap.pdf",sep=""),Zmap, width = 12, height = 6)
 #
 Zfix = rbind(fix_table(Zres_Oslo), fix_table(Zres_Bergen), fix_table(Zres))
+Zfix$data = c(replicate(nrow(fix_table(Zres_Oslo)), "Oslo"),replicate(nrow(fix_table(Zres_Bergen)), "Bergen"),replicate(nrow(fix_table(Zres)), "combined"))
 write.csv(Zfix,paste(savepath,"Ztable.csv",sep=""))
+#
+# Closer examine the effects
+#Zfix[Zfix$ROI %in% signi,] %>% filter(data =="Oslo")
+#Zfix[Zfix$ROI %in% signi,] %>% filter(data =="Bergen")
+
+# show only Bonferroni corrected
+Zfix$p.cor = Zfix$p*(length(signi)+82)
+#Zfix[Zfix$ROI %in% signi,] %>% filter(data =="Oslo" & p.cor<0.05)
+#Zfix[Zfix$ROI %in% signi,] %>% filter(data =="Bergen" & p.cor<0.05)
+Zfix[Zfix$ROI %in% signi,] %>% filter(data =="combined" & p.cor<0.05)
 #
 # Check whether thalamus and superior frontal cortex degenerate faster in pwMS compared to HC
 # !! 
@@ -784,113 +840,113 @@ write.csv(Zfix,paste(savepath,"Ztable.csv",sep=""))
 # 
 #
 #
-# For comparison: OFAMS data without the 10-year follow-up ####
-# this QC steps allows for a closer mimicking of the follow-up times between datasets
-plist2 = the_reslist2 = list()
-data_list2 = list(df%>%filter(data == "MS"),
-                  df%>%filter(data == "OFAMS")%>%filter(session!=16),
-                  df2%>%filter(session!=16))
-for (i in 1:length(data_list2)){
-  data_frame = data_list2[[i]]
-  # 3.1.1 Cortical #### #
-  ROIs = c(data_frame %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
-           data_frame %>% select(starts_with("rh") & ends_with("volume")) %>% names())
-  n_cort_ROIs = length(ROIs)
-  reslist=list()
-  for(region in 1:length(ROIs)){
-    f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
-    mod = lmer(f,data_frame)
-    age.beta = effectsize::standardize_parameters(mod)$Std_Coefficient[4]
-    CI_high = effectsize::standardize_parameters(mod)$CI_high[4]
-    CI_low = effectsize::standardize_parameters(mod)$CI_low[4]
-    p = summary(mod)$coefficients[4,5]
-    reslist[[region]] = data.frame(ROIs[region],age.beta,CI_high,CI_low,p)
-  }
-  res = list_rbind(reslist)
-  res$p.corr = (length(res$p)+14)*res$p # Bonferroni correction considering also the 14 subcortical areas
-  plot_df = res
-  plot_df = plot_df[order(plot_df$ROIs.region.),] # order the data frame
-  plot_df$region = brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",plot_df$ROIs.region.)][1:34]
-  plot_df$hemi = ifelse(grepl("lh_",plot_df$ROIs.region.)==T,"left","right")
-  plot_df01 = plot_df
-  plot_df$age.beta = ifelse(plot_df$p.corr > .05, NA,plot_df$age.beta)
-  p1 = ggplot(plot_df) + geom_brain(atlas = dk,aes(fill = age.beta),color="black")+
-    #scale_fill_viridis_c(option = "cividis", direction = -1)+
-    scale_fill_gradient2(low = "blue",mid = "white",high="red") +
-    #labs(title="Regional volume loss") + 
-    theme_void()
-  p1 = p1+labs(fill="Std.Coeff.") + #mm<sup>3</sup>/year
-    theme(
-      plot.title = element_markdown(),
-      legend.title = element_markdown()
-    )
-  # 3.1.2 Sub-Cortical #### #
-  # subcortical: thalamus, pallidum, amygdala, hippocampus, putamen, accumbens area, and caudate nucleus
-  ROIs = names(data_frame)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC|Cerebellum.Cortex"),names(data_frame))]
-  ROIs = ROIs[!grepl(c("CC"),ROIs)]
-  ROIs = ROIs[order(ROIs)]
-  reslist=list()
-  for(region in 1:length(ROIs)){
-    f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
-    mod = lmer(f,data_frame)
-    age.beta = effectsize::standardize_parameters(mod)$Std_Coefficient[4]
-    CI_high = effectsize::standardize_parameters(mod)$CI_high[4]
-    CI_low = effectsize::standardize_parameters(mod)$CI_low[4]
-    p = summary(mod)$coefficients[4,5]
-    reslist[[region]] = data.frame(ROIs[region],age.beta,CI_high,CI_low,p)
-  }
-  res2 = list_rbind(reslist)
-  res2$p.corr = (length(res2$p)+(length(c(data_frame %>% dplyr::select(starts_with("lh") & ends_with("volume")) %>% names(),
-                                          data_frame %>% dplyr::select(starts_with("rh") & ends_with("volume")) %>% names())
-  )))*res2$p # Bonferroni correction considering all ROIs
-  #cerebellum = res2[grepl(".Cerebellum.Cortex",res2$ROIs.region.),]
-  res=rbind(data.frame(res),data.frame(res2))
-  res2 = res2[!grepl(".Cerebellum.Cortex",res2$ROIs.region.),]
-  plot_df1 = res2
-  plot_df1 = plot_df1[order(plot_df1$ROIs.region.),] # order the data frame
-  plot_df1$label = brain_labels(aseg)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate"),brain_labels(aseg))]
-  #brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",plot_df1$ROIs.region.)][1:34]
-  coronal_brain_aseg = as_tibble(aseg) %>%
-    filter(side == "coronal", !grepl("\\d", label))
-  #
-  # Note: the painful steps above leading to this merger are crucial.
-  # This will be useful for later use of ggseg (aseg). Enjoy!
-  plot_df1 = merge(plot_df1,coronal_brain_aseg,by="label") # merge the data with the atlas labels
-  plot_df02 = plot_df1
-  #
-  plot_df1$age.beta = ifelse(plot_df1$p.corr > .05, NA,plot_df1$age.beta)
-  #
-  p1.1 = ggplot(plot_df1) + geom_brain(atlas = aseg, side = "coronal",aes(fill = age.beta),color="black")+
-    #scale_fill_viridis_c(option = "cividis", direction = -1)+
-    scale_fill_gradient2(low = "blue",mid = "white",high="red") +
-    #labs(title="Regional volume loss") + 
-    theme_void()
-  p1.1 = p1.1+labs(fill="Std.Coeff.") +
-    theme(
-      plot.title = element_markdown(),
-      legend.title = element_markdown()
-    )
-  p = ggarrange(p1,p1.1,nrow=1,widths=c(2,.5))
-  the_reslist2[[i]] = res
-  plist2[[i]] = p
-}
-age.p = ggarrange(plotlist = plist,ncol = 1,labels=c("a","b","c"))
-age.p = annotate_figure(age.p, top = text_grob("Annual regional volume loss",face = "bold", size = 17))
-ggsave(paste(savepath,"age_plot_SHORT_standardized.pdf",sep=""),age.p, width = 14, height = 6)
-#safe table of the results
-unstd_SHORT = list_rbind(the_reslist)
-unstd_SHORT$data = c(replicate(nrow(unstd_SHORT)/length(data_list),"Oslo"),
-               replicate(nrow(unstd_SHORT)/length(data_list),"OFAMS"),
-               replicate(nrow(unstd_SHORT)/length(data_list),"both"))
-write.csv(file = paste(savepath,"age_beta_SHORT_standardized.csv",sep=""),unstd_SHORT)
-#
-#
-#
-#
-#
-#
-#
-#
+# # For comparison: OFAMS data without the 10-year follow-up ####
+# # this QC steps allows for a closer mimicking of the follow-up times between datasets
+# plist2 = the_reslist2 = list()
+# data_list2 = list(df%>%filter(data == "MS"),
+#                   df%>%filter(data == "OFAMS")%>%filter(session!=16),
+#                   df2%>%filter(session!=16))
+# for (i in 1:length(data_list2)){
+#   data_frame = data_list2[[i]]
+#   # 3.1.1 Cortical #### #
+#   ROIs = c(data_frame %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
+#            data_frame %>% select(starts_with("rh") & ends_with("volume")) %>% names())
+#   #n_cort_ROIs = length(ROIs)
+#   reslist=list()
+#   for(region in 1:length(ROIs)){
+#     f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
+#     mod = lmer(f,data_frame)
+#     age.beta = effectsize::standardize_parameters(mod)$Std_Coefficient[4]
+#     CI_high = effectsize::standardize_parameters(mod)$CI_high[4]
+#     CI_low = effectsize::standardize_parameters(mod)$CI_low[4]
+#     p = summary(mod)$coefficients[4,5]
+#     reslist[[region]] = data.frame(ROIs[region],age.beta,CI_high,CI_low,p)
+#   }
+#   res = list_rbind(reslist)
+#   res$p.corr = (length(res$p)+14)*res$p # Bonferroni correction considering also the 14 subcortical areas
+#   plot_df = res
+#   plot_df = plot_df[order(plot_df$ROIs.region.),] # order the data frame
+#   plot_df$region = brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",plot_df$ROIs.region.)][1:34]
+#   plot_df$hemi = ifelse(grepl("lh_",plot_df$ROIs.region.)==T,"left","right")
+#   plot_df01 = plot_df
+#   plot_df$age.beta = ifelse(plot_df$p.corr > .05, NA,plot_df$age.beta)
+#   p1 = ggplot(plot_df) + geom_brain(atlas = dk,aes(fill = age.beta),color="black")+
+#     #scale_fill_viridis_c(option = "cividis", direction = -1)+
+#     scale_fill_gradient2(low = "blue",mid = "white",high="red") +
+#     #labs(title="Regional volume loss") + 
+#     theme_void()
+#   p1 = p1+labs(fill="Std.Coeff.") + #mm<sup>3</sup>/year
+#     theme(
+#       plot.title = element_markdown(),
+#       legend.title = element_markdown()
+#     )
+#   # 3.1.2 Sub-Cortical #### #
+#   # subcortical: thalamus, pallidum, amygdala, hippocampus, putamen, accumbens area, and caudate nucleus
+#   ROIs = names(data_frame)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC|Cerebellum.Cortex"),names(data_frame))]
+#   ROIs = ROIs[!grepl(c("CC"),ROIs)]
+#   ROIs = ROIs[order(ROIs)]
+#   reslist=list()
+#   for(region in 1:length(ROIs)){
+#     f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
+#     mod = lmer(f,data_frame)
+#     age.beta = effectsize::standardize_parameters(mod)$Std_Coefficient[4]
+#     CI_high = effectsize::standardize_parameters(mod)$CI_high[4]
+#     CI_low = effectsize::standardize_parameters(mod)$CI_low[4]
+#     p = summary(mod)$coefficients[4,5]
+#     reslist[[region]] = data.frame(ROIs[region],age.beta,CI_high,CI_low,p)
+#   }
+#   res2 = list_rbind(reslist)
+#   res2$p.corr = (length(res2$p)+(length(c(data_frame %>% dplyr::select(starts_with("lh") & ends_with("volume")) %>% names(),
+#                                           data_frame %>% dplyr::select(starts_with("rh") & ends_with("volume")) %>% names())
+#   )))*res2$p # Bonferroni correction considering all ROIs
+#   #cerebellum = res2[grepl(".Cerebellum.Cortex",res2$ROIs.region.),]
+#   res=rbind(data.frame(res),data.frame(res2))
+#   res2 = res2[!grepl(".Cerebellum.Cortex",res2$ROIs.region.),]
+#   plot_df1 = res2
+#   plot_df1 = plot_df1[order(plot_df1$ROIs.region.),] # order the data frame
+#   plot_df1$label = brain_labels(aseg)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate"),brain_labels(aseg))]
+#   #brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",plot_df1$ROIs.region.)][1:34]
+#   coronal_brain_aseg = as_tibble(aseg) %>%
+#     filter(side == "coronal", !grepl("\\d", label))
+#   #
+#   # Note: the painful steps above leading to this merger are crucial.
+#   # This will be useful for later use of ggseg (aseg). Enjoy!
+#   plot_df1 = merge(plot_df1,coronal_brain_aseg,by="label") # merge the data with the atlas labels
+#   plot_df02 = plot_df1
+#   #
+#   plot_df1$age.beta = ifelse(plot_df1$p.corr > .05, NA,plot_df1$age.beta)
+#   #
+#   p1.1 = ggplot(plot_df1) + geom_brain(atlas = aseg, side = "coronal",aes(fill = age.beta),color="black")+
+#     #scale_fill_viridis_c(option = "cividis", direction = -1)+
+#     scale_fill_gradient2(low = "blue",mid = "white",high="red") +
+#     #labs(title="Regional volume loss") + 
+#     theme_void()
+#   p1.1 = p1.1+labs(fill="Std.Coeff.") +
+#     theme(
+#       plot.title = element_markdown(),
+#       legend.title = element_markdown()
+#     )
+#   p = ggarrange(p1,p1.1,nrow=1,widths=c(2,.5))
+#   the_reslist2[[i]] = res
+#   plist2[[i]] = p
+# }
+# age.p = ggarrange(plotlist = plist,ncol = 1,labels=c("a","b","c"))
+# age.p = annotate_figure(age.p, top = text_grob("Annual regional volume loss",face = "bold", size = 17))
+# ggsave(paste(savepath,"age_plot_SHORT_standardized.pdf",sep=""),age.p, width = 14, height = 6)
+# #safe table of the results
+# unstd_SHORT = list_rbind(the_reslist)
+# unstd_SHORT$data = c(replicate(nrow(unstd_SHORT)/length(data_list),"Oslo"),
+#                replicate(nrow(unstd_SHORT)/length(data_list),"OFAMS"),
+#                replicate(nrow(unstd_SHORT)/length(data_list),"both"))
+# write.csv(file = paste(savepath,"age_beta_SHORT_standardized.csv",sep=""),unstd_SHORT)
+# #
+# #
+# #
+# #
+# #
+# #
+# #
+# #
 # 4. Regional EDSS associations ####
 #   # 4.1 UnStandardized ####
 #     # 4.1.1 Cortical ####
@@ -974,6 +1030,9 @@ write.csv(file = paste(savepath,"age_beta_SHORT_standardized.csv",sep=""),unstd_
 # #
   # 4.2 Standardized ####
     # 4.2.1 Cortical ####
+edss.tab = edss.plot = list()
+for (i in 1:(length(data_list)-1)){
+  df = data_list[[i]]
 ROIs = c(df %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
          df %>% select(starts_with("rh") & ends_with("volume")) %>% names())
 reslist=list()
@@ -1027,7 +1086,6 @@ coronal_brain_aseg = as_tibble(aseg) %>%
   filter(side == "coronal", !grepl("\\d", label))
 plot_df1 = merge(plot_df1,coronal_brain_aseg,by="label") # merge the data with the atlas labels
 plot_df02 = plot_df1
-
 plot_df02$hemi = ifelse(grepl("lh_",plot_df02$ROIs.region.)==T,"left","right")
 plot_df02$std.beta = ifelse(plot_df02$p*43 > .05, NA,plot_df02$std.beta) # Bonferroni correction by nb regions
 # plot it
@@ -1041,6 +1099,12 @@ p04 = p04+labs(fill="Std. Beta") +
     plot.title = element_markdown(),
     legend.title = element_markdown()
   )
+edss.plot[[i]] = ggarrange(p03,p04,ncol=2,widths=c(2,.5))#,labels=c("c","d"))
+plot_df02 = plot_df02 %>% select(names(plot_df01))
+edss.tab[[i]] = rbind(plot_df01,plot_df1[,colnames(plot_df1) %in% colnames(plot_df01)])
+
+}
+ggarrange(plotlist = edss.plot, ncol=1)
 # make a table containing outputs of cortical and subcortical volume associations with 
 #edss.tab = rbind(plot_df01 %>% select(region,hemi,edss.beta,SE,t,p,p.corr),plot_df02 %>% select(region,hemi,edss.beta,SE,t,p,p.corr))
 #edss.tab = rbind(plot_df01 %>% select(region,hemi,edss.beta,SE,std.beta,CI_high,CI_low,t,p,p.corr),plot_df02 %>% select(region,hemi,edss.beta,SE,std.beta,CI_high,CI_low,t,p,p.corr))
@@ -1055,25 +1119,17 @@ p04 = p04+labs(fill="Std. Beta") +
 #
 #
 #
-# Start with unstandardized plots
-#
-# edss.plot = ggarrange(p2,p2.2,ncol=2,widths=c(2,.5),labels=c("c","d"))
-# edss.plot = annotate_figure(edss.plot, top = text_grob("Associations of EDSS and regional brain volume",face = "bold", size = 17))
-# plot1 = ggarrange(age.plot, edss.plot, nrow=2)
-# ggsave(paste(savepath,"reg_plot.pdf",sep=""),plot1, width = 14, height = 6)
-#
-#
-# Now, the standardized plots
-edss.plot = ggarrange(p03,p04,ncol=2,widths=c(2,.5))#,labels=c("c","d"))
+# standardized plots
 #edss.plot = annotate_figure(edss.plot, top = text_grob("Associations of EDSS and regional brain volume",face = "bold", size = 17))
 #plot1 = ggarrange(age.plot, edss.plot, nrow=2)
 ggsave(paste(savepath,"EDSS_plot_standardized.pdf",sep=""),edss.plot, width = 15, height = 4)
 #
 # Merge tables
-plot_df02 = plot_df02 %>% select(names(plot_df01))
-edss.tab = rbind(plot_df01,plot_df02)
 # show significant correlates with EDSS
 edss.tab %>% filter(p<.05/43)
+# show significant correlates of EDSS
+edss.tab$p.corr = edss.tab$p*(length(signi)+83)
+edss.tab[edss.tab$ROIs.region. %in% signi,] %>% filter(p.corr<.05)#filter(p<.05/(length(signi)+83))
 
   # 5.2 Save tables ####
 # write.csv(age.tab,file = paste(savepath,"age_tab.csv",sep=""))
@@ -1081,6 +1137,11 @@ write.csv(edss.tab,file = paste(savepath,"edss_tab.csv",sep=""))
 #
 #
 # 6. Overlap between faster ageing regions and EDSS-related regions ####
+# overlap between significant ageing regions and EDSS
+EDSS.signi = edss.tab %>% filter(p<.05/43) %>% pull(ROIs.region.)
+EDSS.signi[EDSS.signi %in% signi]
+
+
 # the following regions overlap between
 edss_rel = edss.tab %>% filter(p<.05/43) %>% pull(ROIs.region.)
 # let's look at the overlap between faster ageing than older folks regions
