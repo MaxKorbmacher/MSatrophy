@@ -10,7 +10,7 @@
 # clean up
 rm(list = ls(all.names = TRUE)) # clear all objects includes hidden objects.
 gc() #free up memory and report the memory usage.
-savepath = "/Users/max/Documents/Local/MS/GMresults/" # define results/save/oputput path
+savepath = "/Users/max/Documents/Local/MS/GMresults/noCombat/" # define results/save/oputput path
 #
 ################################### #
 # Contents:
@@ -39,23 +39,15 @@ savepath = "/Users/max/Documents/Local/MS/GMresults/" # define results/save/oput
 #
 # 0. Prep ####
 # load packages and install if not already installed
-# install.packages("devtools")
-# library(devtools)
-# devtools::install_github("jcbeer/longCombat")
-# install_github("jfortin1/neuroCombatData")
-# install_github("jfortin1/neuroCombat_Rpackage")
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(tidyverse,lme4,lmerTest,effects,effectsize,interactions,gamm4,
-               ggseg,ggtext,ggpubr,MuMIn,dplyr,ggplot2,standardize,longCombat,
-               neuroCombat)
+               ggseg,ggtext,ggpubr,MuMIn,dplyr,ggplot2,standardize)
 # data
 lifespan = read.csv("/Users/max/Documents/Local/Data/Lifespan/cortical_subcortical.csv")
 df = read.csv("/Users/max/Documents/Local/MS/data/final_dat_subc.csv")
 OSLl  = read.delim("/Users/max/Documents/Local/Data/Oslo/lh.volume.UKBB.txt")
 OSLr  = read.delim("/Users/max/Documents/Local/Data/Oslo/rh.volume.UKBB.txt")
 OSLsub  = read.delim("/Users/max/Documents/Local/Data/Oslo/subcorticalstats.UKBB.txt")
-#msOSL = read.csv("/Users/max/Documents/Local/Data/Oslo/MS_Einar.csv")
-#subOSL = read.delim("/Users/max/Documents/Local/Data/Lifespan/MS_subcortical.txt")
 demoOSL = read.csv("/Users/max/Documents/Local/Data/Oslo/Oslo_demographics.csv")
 # standardize and join datasets
 colnames(OSLsub)[1] = colnames(OSLr)[1] = colnames(OSLl)[1] = "eid"
@@ -68,9 +60,6 @@ OSLsub$eid = substr(OSLsub$eid,1,10)
 msOSL = merge(OSLr,OSLl %>% select(-eTIV,-BrainSegVolNotVent),by="eid")
 msOSL = merge(msOSL,OSLsub%>% select(-BrainSegVolNotVent),by="eid")
 df$session = df$session+1
-#names(subOSL)[names(subOSL) == "Measure.volume"] = "eid"
-#subOSL$eid = gsub("/","",subOSL$eid)
-#msOSL = merge(msOSL, subOSL, by = c("eid"))
 names(demoOSL)[names(demoOSL) == "Individual_TimePoint"] = "eid" 
 #
 #
@@ -110,8 +99,10 @@ df$scanner = ifelse(df$eid > 1600, "p", df$eid)
 df$data = "OFAMS"
 df$sex = factor(df$sex) # make sex a factor
 levels(df$sex) = c("M","F")
-# names(df)[names(df) == "Left.Thalamus"] = "Left.Thalamus.Proper"
-# names(df)[names(df) == "Right.Thalamus"] = "Right.Thalamus.Proper"
+names(lifespan)[names(lifespan) == "Left.Thalamus.Proper"] = "Left.Thalamus"
+names(lifespan)[names(lifespan) == "Right.Thalamus.Proper"] = "Right.Thalamus"
+
+
 #df$session = as.numeric(factor(df$session))
 msOSL = msOSL[,names(msOSL)[names(msOSL) %in% names(df)]]
 msOSL$session = ifelse(grepl("_01",msOSL$eid) == T, 1,0) + ifelse(grepl("_02",msOSL$eid) == T, 2,0) + 
@@ -123,26 +114,26 @@ msOSL$eid = substr(msOSL$eid,1,7)
 msOSL$data = "MS"
 #df = df[,names(df)[names(df) %in% names(msOSL)]]
 
-# longitudinal Combat
-LC = function(dat){covars = dat %>% dplyr::select(sex,edss,data,age)
-# sesh = dat$session
-# dat = dat %>% select(-session)
-features = c(dat %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
-             dat %>% select(starts_with("rh") & ends_with("volume")) %>% names(),
-             names(dat)[grepl(c("halamus|allidum|mygdala|
-                                campus|utamen|audate|
-                                CC|Cerebellum.Cortex"),names(dat))],
-             dat %>% select(TotalGrayVol, EstimatedTotalIntraCranialVol,
-                            ends_with("Hippocampus")) %>% names())
-dat = longCombat(idvar = "eid", timevar = "session", batchvar = "scanner", 
-                 features = features,
-                 formula = "age + sex", ranef = "(1|eid)", data = dat)
-dat = dat$data_combat
-dat = cbind(covars,dat)
-colnames(dat) = gsub('.combat','',colnames(dat))
-# dat$session = sesh
-return(dat)
-}
+# # longitudinal Combat
+# LC = function(dat){covars = dat %>% dplyr::select(sex,edss,data,age)
+# # sesh = dat$session
+# # dat = dat %>% select(-session)
+# features = c(dat %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
+#              dat %>% select(starts_with("rh") & ends_with("volume")) %>% names(),
+#              names(dat)[grepl(c("halamus|allidum|mygdala|
+#                                 campus|utamen|audate|
+#                                 CC|Cerebellum.Cortex"),names(dat))],
+#              dat %>% select(TotalGrayVol, EstimatedTotalIntraCranialVol,
+#                             ends_with("Hippocampus")) %>% names())
+# dat = longCombat(idvar = "eid", timevar = "session", batchvar = "scanner", 
+#                  features = features,
+#                  formula = "age + sex", ranef = "(1|eid)", data = dat)
+# dat = dat$data_combat
+# dat = cbind(covars,dat)
+# colnames(dat) = gsub('.combat','',colnames(dat))
+# # dat$session = sesh
+# return(dat)
+# }
 #
 #
 #
@@ -154,215 +145,33 @@ msOSL$scanner = as.numeric(factor(msOSL$scanner))
 msOSL$sex = ifelse(msOSL$sex == "male","M",msOSL$sex)
 msOSL$sex = ifelse(msOSL$sex == "female","F",msOSL$sex)
 df0=df
-df = rbind(LC(msOSL),LC(na.omit(df)))
+#df = rbind(LC(msOSL),LC(na.omit(df)))
 #
 # For analysis of both datasets together, the harmonisation must be made together
 msOSL = msOSL[,names(msOSL)[names(msOSL) %in% names(df0)]]
 df0 = df0[,names(df0)[names(df0) %in% names(msOSL)]]
-df2 = LC(rbind(msOSL,na.omit(df0)))
+df2 = rbind(msOSL,df0)
+# df2 = LC(rbind(msOSL,na.omit(df0)))
 #
 #
 # note: from here onwards, findings are being examined in OFAMS data and then replicated in independent Oslo data
 #
 #
 # 1. General trend of GM vol degeneration ####
-#df$session = factor(df$session) # make session a factor
-#df$geno = factor(df$geno) # make genotype a factor
 df$sex = factor(df$sex) # make sex a factor
 df$TIV = df$EstimatedTotalIntraCranialVol/1000000 # transform into liters / dm3
 df$TotalVol = df$TotalGrayVol/1000000
 df2$TIV = df2$EstimatedTotalIntraCranialVol/1000000 # transform into liters / dm3
 df2$TotalVol = df2$TotalGrayVol/1000000
-# from mm^3 to dm^3 or liters
 
-# # OFAMS
-# vol.m = lmer(TotalVol~age*sex+TIV+(1|eid),df%>%filter(data == "OFAMS"))
-# #Effect("session",vol.m)
-# plot(Effect("age",vol.m))
-# summary(vol.m)$coefficients
-# effectsize::standardize_parameters(vol.m)
-# interact_plot(vol.m,pred =  age, modx = sex) # interaction of sex
-# 
-# # Oslo
-# vol.m = lmer(TotalVol~age*sex+TIV+(1|eid),df%>%filter(data == "MS"))
-# #summary(vol.m) 
-# plot(Effect("age",vol.m))
-# summary(vol.m)$coefficients
-# effectsize::standardize_parameters(vol.m)
-# #plot(Effect("geno",vol.m))
-# #plot(Effect(c("geno","sex"),vol.m)) # seem like no interaction of sex and genotype
-# #vol.m0 = lmer(TotalVol~session+TIV+age*sex+(1|eid),df)
-# interact_plot(vol.m,pred =  age, modx = sex) # no interaction of genotype and age
-# 
-# # introduce a non-linear trend of age (yet similar to linear trend...)
-# vol.gam = gamm4(TotalVol~TIV+sex+s(age),random=~(1|eid),data=df%>%filter(data == "MS"))
-# plot(vol.gam$gam,pages=1)
-# vol.gam = gamm4(TotalVol~TIV+sex+s(age),random=~(1|eid),data=df%>%filter(data == "OFAMS"))
-# plot(vol.gam$gam,pages=1)
-
-#plot(vol.gam$mer,pages=1) # underlying mixed model
-#anova(vol.gam$gam)
-#
-###### IMPORTANT: WE SEE AN OVERALL QUITE LINEAR DEGENERATION.
-###### THAT MEANS THAT ONE CAN ALSO USE THE DATA UP TO 2 YEARS TO MODEL DEGENERATIVE PROCESSES IN CASE WE LIMIT THE RESEARCH TO THE OMICS SAMPLING PERIOD
-
-# 2. General association of GM vol and EDSS ####
-# edss.m = lmer(edss~TotalVol+sex+TIV+age+(1|eid),df%>%filter(data == "OFAMS"))
-# summary(edss.m) 
-# plot(Effect("TotalVol",edss.m),xlab = "Total brain volume",ylab="EDSS",main="Adjusted association of EDS and total volume")
-# effectsize::standardize_parameters(edss.m) # clear association between edss & vol
-# r.squaredGLMM(edss.m)
-# edss.m = lmer(edss~TotalVol+sex+TIV+age+(1|eid),df%>%filter(data == "MS"))
-# summary(edss.m) 
-# plot(Effect("TotalVol",edss.m),xlab = "Total brain volume",ylab="EDSS",main="Adjusted association of EDS and total volume")
-# effectsize::standardize_parameters(edss.m) # clear association between edss & vol
-# r.squaredGLMM(edss.m)
-# #
-# # one can also control for the interaction of brain volume and sex
-# edss.m = lmer(edss~TotalVol*sex+TIV+age+(1|eid),df%>%filter(data == "OFAMS"))
-# summary(edss.m) 
-# plot(Effect("TotalVol",edss.m),xlab = "Total brain volume",ylab="EDSS",main="Adjusted association of EDS and total volume")
-# interact_plot(edss.m,pred =  TotalVol, modx = sex) # interaction of sex
-# effectsize::standardize_parameters(edss.m) # clear association between edss & vol
-# r.squaredGLMM(edss.m)
-# edss.m = lmer(edss~TotalVol*sex+TIV+age+(1|eid),df%>%filter(data == "MS"))
-# summary(edss.m) 
-# plot(Effect("TotalVol",edss.m),xlab = "Total brain volume",ylab="EDSS",main="Adjusted association of EDS and total volume")
-# effectsize::standardize_parameters(edss.m) # clear association between edss & vol
-# r.squaredGLMM(edss.m)
-# interact_plot(edss.m,pred =  TotalVol, modx = sex) # interaction of sex
-#
-#
-#
-# edss.m3 = lmer(edss~TotalVol*geno+sex+TIV+age+(1|eid),df)
-# summary(edss.m3) 
-# interact_plot(edss.m3,pred =  TotalVol, modx = geno) # interaction of genotype
-
-# edss.m3 = lmer(edss~TotalVol*geno+geno*sex+TIV+age+(1|eid),df)
-# summary(edss.m3) 
-# interact_plot(edss.m3,pred =  sex, modx = geno) 
-# effectsize::standardize_parameters(edss.m3)
-#
-#
-# r.squaredGLMM(edss.m)
-# r.squaredGLMM(edss.m1)
-# r.squaredGLMM(edss.m2)
-# r.squaredGLMM(edss.m3)
-# 
-# anova(edss.m1,edss.m3) # the two best performing models are not different from each other
-# we pick hence the simpler model, edss.m1
-# contains sex,age,vol, no interaction effects
-# 3. Regional age associations ####
-  # 3.1 Unstandardized ####
-# ROIs = names(df)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC|Cerebellum.Cortex"),names(df))]
-# change = function(data_frame){
-#   # 3.1.1 Cortical #### #
-# ROIs = c(data_frame %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
-# data_frame %>% select(starts_with("rh") & ends_with("volume")) %>% names())
-# n_cort_ROIs = length(ROIs)
-# reslist=list()
-# for(region in 1:length(ROIs)){
-#   f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
-#   mod = lmer(f,data_frame)
-#   age.beta = summary(mod)$coefficients[4]
-#   SE = summary(mod)$coefficients[4,2]
-#   t = summary(mod)$coefficients[4,4]
-#   p = summary(mod)$coefficients[4,5]
-#   reslist[[region]] = data.frame(ROIs[region],age.beta,SE,t,p)
-# }
-# res = list_rbind(reslist)
-# res$p.corr = (length(res$p)+14)*res$p # Bonferroni correction considering also the 14 subcortical areas
-# plot_df = res
-# plot_df = plot_df[order(plot_df$ROIs.region.),] # order the data frame
-# plot_df$region = brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",plot_df$ROIs.region.)][1:34]
-# plot_df$hemi = ifelse(grepl("lh_",plot_df$ROIs.region.)==T,"left","right")
-# plot_df01 = plot_df
-# plot_df$age.beta = ifelse(plot_df$p.corr > .05, NA,plot_df$age.beta)
-# p1 = ggplot(plot_df) + geom_brain(atlas = dk,aes(fill = age.beta),color="black")+
-#   #scale_fill_viridis_c(option = "cividis", direction = -1)+
-#   scale_fill_gradient2(low = "blue",mid = "white",high="red") +
-#   #labs(title="Regional volume loss") + 
-#   theme_void()
-# p1 = p1+labs(fill="mm<sup>3</sup>") + #mm<sup>3</sup>/year
-#   theme(
-#     plot.title = element_markdown(),
-#     legend.title = element_markdown()
-#   )
-# # 3.1.2 Sub-Cortical #### #
-# # subcortical: thalamus, pallidum, amygdala, hippocampus, putamen, accumbens area, and caudate nucleus
-# ROIs = names(data_frame)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC|Cerebellum.Cortex"),names(data_frame))]
-# ROIs = ROIs[!grepl(c("CC"),ROIs)]
-# ROIs = ROIs[order(ROIs)]
-# reslist=list()
-# for(region in 1:length(ROIs)-2){
-#   f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
-#   mod = lmer(f,data_frame)
-#   age.beta = summary(mod)$coefficients[4]
-#   SE = summary(mod)$coefficients[4,2]
-#   t = summary(mod)$coefficients[4,4]
-#   p = summary(mod)$coefficients[4,5]
-#   reslist[[region]] = data.frame(ROIs[region],age.beta,SE,t,p)
-# }
-# res2 = list_rbind(reslist)
-# res2$p.corr = (length(res2$p)+(length(c(data_frame %>% dplyr::select(starts_with("lh") & ends_with("volume")) %>% names(),
-#                                       data_frame %>% dplyr::select(starts_with("rh") & ends_with("volume")) %>% names())
-# )))*res2$p # Bonferroni correction considering all ROIs
-# #cerebellum = res2[grepl(".Cerebellum.Cortex",res2$ROIs.region.),]
-# res=rbind(res,res2)
-# res2 = res2[!grepl(".Cerebellum.Cortex",res2$ROIs.region.),]
-# plot_df1 = res2
-# plot_df1 = plot_df1[order(plot_df1$ROIs.region.),] # order the data frame
-# plot_df1$label = brain_labels(aseg)[grepl(c("halamus|allidum|mygdala|campus|utamen|audate"),brain_labels(aseg))]
-# #brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",plot_df1$ROIs.region.)][1:34]
-# coronal_brain_aseg = as_tibble(aseg) %>%
-#   filter(side == "coronal", !grepl("\\d", label))
-# #
-# # Note: the painful steps above leading to this merger are crucial.
-# # This will be useful for later use of ggseg (aseg). Enjoy!
-# plot_df1 = merge(plot_df1,coronal_brain_aseg,by="label") # merge the data with the atlas labels
-# plot_df02 = plot_df1
-# #
-# plot_df1$age.beta = ifelse(plot_df1$p.corr > .05, NA,plot_df1$age.beta)
-# #
-# p1.1 = ggplot(plot_df1) + geom_brain(atlas = aseg, side = "coronal",aes(fill = age.beta),color="black")+
-#   #scale_fill_viridis_c(option = "cividis", direction = -1)+
-#   scale_fill_gradient2(low = "blue",mid = "white",high="red") +
-#   #labs(title="Regional volume loss") + 
-#   theme_void()
-# p1.1 = p1.1+labs(fill="mm<sup>3</sup>") +
-#   theme(
-#     plot.title = element_markdown(),
-#     legend.title = element_markdown()
-#   )
-# p = ggarrange(p1,p1.1,nrow=1,widths=c(2,.5))
-# return(list(res,p))
-# }
-# #
-# # Apply the function which was established above
-# #
-# df = data.frame(df)
-# names(df)
-# age.plot = ggarrange(change(df%>%dplyr::filter(data == "MS"))[[2]],change(df%>%filter(data == "OFAMS"))[[2]],nrow=2,labels=c("a","b"))
-# age.plot = annotate_figure(age.plot, top = text_grob("Annual regional volume loss",face = "bold", size = 17))
-# ggsave(paste(savepath,"age_plot_unstandardized.pdf",sep=""),age.plot, width = 14, height = 6)
-# #safe table of the results
-# unstd = rbind(change(df%>%filter(data == "MS"))[[1]],change(df%>%filter(data == "OFAMS"))[[1]])
-# unstd$data = c(replicate(nrow(unstd)/2,"Oslo"),replicate(nrow(unstd)/2,"OFAMS"))
-# write.csv(file = paste(savepath,"age_beta_unstandardized.csv",sep=""),unstd)
-# #
-#
-# create output table with all values in it 
-#age.tab = rbind(plot_df01 %>% select(region,hemi,age.beta,SE,std.beta,CI_low,CI_high, t,p,p.corr),plot_df02 %>% select(region,hemi,age.beta,SE,std.beta,CI_low,CI_high,t,p,p.corr))
-#
   # 3.2 Standardized ####
 # add UKB longitudinal data to check for random effects
 UKBlong = lifespan[lifespan$eid %in% (lifespan %>% filter(data == "UKB" & session == 2))$eid,]
-UKBlong = UKBlong %>% filter(age < max(df$age)) # limits maximum age to that of the MS cohort
+UKBlong = UKBlong %>% filter(age < max(na.omit(df2$age))) # limits maximum age to that of the MS cohort
 UKBlong$TIV = UKBlong$EstimatedTotalIntraCranialVol
 UKBlong$sex = ifelse(ifelse(UKBlong$sex == "Female",0,UKBlong$sex) == "Male",1,ifelse(UKBlong$sex == "Female",0,UKBlong$sex))
 plist = the_reslist = list()
-data_list = list(df%>%filter(data == "MS"),df%>%filter(data == "OFAMS"),df2, UKBlong)
-
+data_list = list(df2%>%filter(data == "MS"),df2%>%filter(data == "OFAMS"),df2, UKBlong)
 for (i in 1:length(data_list)){
   data_frame = data_list[[i]]
   # 3.1.1 Cortical #### #
@@ -371,7 +180,7 @@ for (i in 1:length(data_list)){
   #n_cort_ROIs = length(ROIs)
   reslist=list()
   for(region in 1:length(ROIs)){
-    f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
+    f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)+(1|scanner)"))
     mod = lmer(f,data_frame)
     age.beta = effectsize::standardize_parameters(mod)$Std_Coefficient[4]
     CI_high = effectsize::standardize_parameters(mod)$CI_high[4]
@@ -404,7 +213,7 @@ for (i in 1:length(data_list)){
   ROIs = ROIs[order(ROIs)]
   reslist=list()
   for(region in 1:(length(ROIs))){
-    f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)"))
+    f = formula(paste(ROIs[region],"~TIV+sex+age+(1|eid)+(1|scanner)"))
     mod = lmer(f,data_frame)
     age.beta = effectsize::standardize_parameters(mod)$Std_Coefficient[4]
     CI_high = effectsize::standardize_parameters(mod)$CI_high[4]
@@ -467,18 +276,20 @@ Nm$TIV = Nm$EstimatedTotalIntraCranialVol/1000000 # transform into liters / dm3
 # Nm = rbind(df_list[[1]],df_list[[2]][commons])
 # Nm = Nm %>% filter(session == 1)
 Nm = na.omit(Nm)
-# 2) harmonize
-covars = Nm %>% dplyr::select(eid,sex,scanner,age,data)
-covars$sex = ifelse(covars$sex == "F" | covars$sex == "Female",0,1)
-datasets = covars$data
-covars$data = as.numeric(factor(Nm$data))
-Nm = neuroCombat(t(Nm%>%dplyr::select(EstimatedTotalIntraCranialVol,starts_with("Left"),starts_with("Right"), starts_with("lh"),starts_with("rh"))),batch=as.numeric(factor(Nm$scanner)),mod=model.matrix(~covars$age+covars$sex), mean.only = T)
-Nm = data.frame(t(Nm$dat.combat))
-Nm = cbind(covars,Nm)
+Nm$sex = ifelse(Nm$sex == "F" | Nm$sex == "Female",0,1)
+
+# # 2) harmonize
+# covars = Nm %>% dplyr::select(eid,sex,scanner,age,data)
+# covars$sex = ifelse(covars$sex == "F" | covars$sex == "Female",0,1)
+# datasets = covars$data
+# covars$data = as.numeric(factor(Nm$data))
+# Nm = neuroCombat(t(Nm%>%dplyr::select(EstimatedTotalIntraCranialVol,starts_with("Left"),starts_with("Right"), starts_with("lh"),starts_with("rh"))),batch=as.numeric(factor(Nm$scanner)),mod=model.matrix(~covars$age+covars$sex), mean.only = T)
+# Nm = data.frame(t(Nm$dat.combat))
+# Nm = cbind(covars,Nm)
 #
 # 3) match age span
-Nm$datasets = datasets
-Nm = Nm %>% filter(age > min(df$age) & age < max(df$age))
+# Nm$datasets = datasets
+Nm = Nm %>% filter(age > min(na.omit(df2$age)) & age < max(na.omit(df2$age)))
 # plot((Nm %>% filter(age > min(df$age) & age < max(df$age)))$age,(Nm %>% filter(age > min(df$age) & age < max(df$age)))$Right.Thalamus.Proper)
 # cor((Nm %>% filter(age > min(df$age) & age < max(df$age)))$age,(Nm %>% filter(age > min(df$age) & age < max(df$age)))$Right.Thalamus.Proper)
 # plot((df%>%filter(session==1))$age,(df%>%filter(session==1))$Right.Thalamus.Proper)
@@ -507,8 +318,8 @@ for (i in 1:length(lm_list)){
   #n_cort_ROIs = length(ROIs)
   reslist=list()
   for(region in 1:length(ROIs)){
-    f = formula(paste(ROIs[region],"~EstimatedTotalIntraCranialVol+sex+age"))
-    mod = lm(f,data_frame)
+    f = formula(paste(ROIs[region],"~EstimatedTotalIntraCranialVol+sex+age+(1|scanner)"))
+    mod = lmer(f,data_frame)
     age.beta = effectsize::standardize_parameters(mod)$Std_Coefficient[4]
     CI_high = effectsize::standardize_parameters(mod)$CI_high[4]
     CI_low = effectsize::standardize_parameters(mod)$CI_low[4]
@@ -540,8 +351,8 @@ for (i in 1:length(lm_list)){
   ROIs = ROIs[order(ROIs)]
   reslist=list()
   for(region in 1:length(ROIs)){
-    f = formula(paste(ROIs[region],"~EstimatedTotalIntraCranialVol+sex+age"))
-    mod = lm(f,data_frame)
+    f = formula(paste(ROIs[region],"~EstimatedTotalIntraCranialVol+sex+age+(1|scanner)"))
+    mod = lmer(f,data_frame)
     age.beta = effectsize::standardize_parameters(mod)$Std_Coefficient[4]
     CI_high = effectsize::standardize_parameters(mod)$CI_high[4]
     CI_low = effectsize::standardize_parameters(mod)$CI_low[4]
@@ -663,7 +474,7 @@ paste("Finally, the cross-sectional lifespan sample (N=", nrow(Nm),
 # check all the HC at a single time point
 table(Nm$datasets)
 nrow(Nm)
-Nm %>% group_by(datasets) %>% summarize(M = mean(age), SD = sd(age), Min = min(age), Max = max(age))
+Nm %>% group_by(data) %>% summarize(M = mean(age), SD = sd(age), Min = min(age), Max = max(age))
 
 # some demographic background, here the age distributions of pwMS vs UKB:
 # hist(df$age,xlab = "MS Age", main = "")
@@ -685,7 +496,7 @@ paste("Figure X. Ageing effects in relapsing-remitting multiple sclerosis and ag
 #
 # We also highlight the strongest effects for the results section
 unstd %>% group_by(data) %>%filter(age.beta == min(age.beta))
-#unstd %>% group_by(data) %>%filter(ROIs.region. == "Left.Thalamus.Proper" | ROIs.region. == "Right.Thalamus.Proper")
+unstd %>% group_by(data) %>%filter(ROIs.region. == "Left.Thalamus" | ROIs.region. == "Right.Thalamus")
 #unstd %>% group_by(data) %>%filter(ROIs.region. == "Left.Putamen" | ROIs.region. == "Right.Putamen")
 unstd %>% group_by(data) %>%filter(ROIs.region. == "lh_superiorfrontal_volume" | ROIs.region. == "rh_superiorfrontal_volume")
 unstd %>% group_by(data) %>%filter(ROIs.region. == "lh_rostralmiddlefrontal_volume" | ROIs.region. == "rh_rostralmiddlefrontal_volume")
@@ -1066,7 +877,7 @@ p03 = p03+labs(fill="Std. Beta") +
     # 4.2.2 Sub-Cortical ####
 ROIs = names(df)
 ROIs = ROIs[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC"),ROIs)]
-#ROIs = ROIs[!grepl(c("CC|Cerebellum.Cortex"),ROIs)]
+ROIs = ROIs[!grepl(c("CC|Cerebellum.Cortex"),ROIs)]
 ROIs = ROIs[order(ROIs)]
 reslist=list()
 for(region in 1:length(ROIs)){
