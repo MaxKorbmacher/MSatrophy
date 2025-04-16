@@ -422,6 +422,13 @@ write.csv(file = paste(savepath,"age_beta_standardized.csv",sep=""),unstd)
 #
 #
 # Key info to report ####
+#
+# The N
+df2%>% filter(is.na(Right.Inf.Lat.Vent) ==F)%>%group_by(data)%>%summarize(length(eid))
+df2%>% filter(is.na(Right.Inf.Lat.Vent) ==F)%>%summarize(length(eid))
+#
+#
+#
 # report the average ageing of participants in the longitudinal studies
 paste("OFAMS participants (N=85, scans=",OFAMS_N_SCANS,") were aged 38.9±8.3 (range: 19-58) years at baseline and 49.6±8.6 at the final follow-up, with 65.9% being females.")
 paste("The Oslo sample participants (N=", nrow(msOSL%>%filter(session==min(as.numeric(msOSL$session)))),
@@ -996,6 +1003,9 @@ p033 = p033+labs(fill="Std. Beta") +
     legend.title = element_markdown()
   )
 p033
+#
+#
+#
 #
 #
 #
