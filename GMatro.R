@@ -1,6 +1,6 @@
 # Analyse GM atrophy among people with multiple sclerosis in the OFAMS (Norwegian multicenter) clinical trial and local data from the Oslo University Hospital
 # Max Korbmacher, 20.12.2024
-# last change: 20 March 2025
+# last change: 22 April 2025
 #
 # Note: the data were NOT harmonized across datasets, but across scanners within datasets when attempting to replicate the findings from one dataset to another.
 #       This was done to provide unbiased replications between Oslo and Bergen data.
@@ -47,7 +47,7 @@ savepath = "/Users/max/Documents/Local/MS/GMresults/" # define results/save/oput
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(tidyverse,lme4,lmerTest,effects,effectsize,interactions,gamm4,
                ggseg,ggtext,ggpubr,MuMIn,dplyr,ggplot2,standardize,longCombat,
-               neuroCombat)
+               neuroCombat,haven,reshape2)
 # data
 lifespan = read.csv("/Users/max/Documents/Local/Data/Lifespan/cortical_subcortical.csv")
 df = read.csv("/Users/max/Documents/Local/MS/data/final_dat_subc.csv")
@@ -92,21 +92,21 @@ names(msOSL)[names(msOSL) == "Scanner"] = "scanner"
 names(msOSL)[names(msOSL) == "Gender"] = "sex"
 names(msOSL)[names(msOSL) == "Age"] = "age"
 df$scanner = ifelse(df$eid > 100 & df$eid < 200, "a", df$eid)
-df$scanner = ifelse(df$eid > 200 & df$eid < 300, "b", df$eid)
-df$scanner = ifelse(df$eid > 300 & df$eid < 400, "c", df$eid)
-df$scanner = ifelse(df$eid > 400 & df$eid < 500, "d", df$eid)
-df$scanner = ifelse(df$eid > 500 & df$eid < 600, "e", df$eid)
-df$scanner = ifelse(df$eid > 600 & df$eid < 700, "f", df$eid)
-df$scanner = ifelse(df$eid > 700 & df$eid < 800, "g", df$eid)
-df$scanner = ifelse(df$eid > 800 & df$eid < 900, "h", df$eid)
-df$scanner = ifelse(df$eid > 900 & df$eid < 1000, "i", df$eid)
-df$scanner = ifelse(df$eid > 1000 & df$eid < 1100, "j", df$eid)
-df$scanner = ifelse(df$eid > 1100 & df$eid < 1200, "k", df$eid)
-df$scanner = ifelse(df$eid > 1200 & df$eid < 1300, "l", df$eid)
-df$scanner = ifelse(df$eid > 1300 & df$eid < 1400, "m", df$eid)
-df$scanner = ifelse(df$eid > 1400 & df$eid < 1500, "n", df$eid)
-df$scanner = ifelse(df$eid > 1500 & df$eid < 1600, "o", df$eid)
-df$scanner = ifelse(df$eid > 1600, "p", df$eid)
+df$scanner = ifelse(df$eid > 200 & df$eid < 300, "b", df$scanner)
+df$scanner = ifelse(df$eid > 300 & df$eid < 400, "c", df$scanner)
+df$scanner = ifelse(df$eid > 400 & df$eid < 500, "d", df$scanner)
+df$scanner = ifelse(df$eid > 500 & df$eid < 600, "e", df$scanner)
+df$scanner = ifelse(df$eid > 600 & df$eid < 700, "f", df$scanner)
+df$scanner = ifelse(df$eid > 700 & df$eid < 800, "g", df$scanner)
+df$scanner = ifelse(df$eid > 800 & df$eid < 900, "h", df$scanner)
+df$scanner = ifelse(df$eid > 900 & df$eid < 1000, "i", df$scanner)
+df$scanner = ifelse(df$eid > 1000 & df$eid < 1100, "j", df$scanner)
+df$scanner = ifelse(df$eid > 1100 & df$eid < 1200, "k", df$scanner)
+df$scanner = ifelse(df$eid > 1200 & df$eid < 1300, "l", df$scanner)
+df$scanner = ifelse(df$eid > 1300 & df$eid < 1400, "m", df$scanner)
+df$scanner = ifelse(df$eid > 1400 & df$eid < 1500, "n", df$scanner)
+df$scanner = ifelse(df$eid > 1500 & df$eid < 1600, "o", df$scanner)
+df$scanner = ifelse(df$eid > 1600, "p", df$scanner)
 df$data = "OFAMS"
 df$sex = factor(df$sex) # make sex a factor
 levels(df$sex) = c("M","F")
@@ -121,45 +121,45 @@ msOSL$session = ifelse(grepl("_01",msOSL$eid) == T, 1,0) + ifelse(grepl("_02",ms
   ifelse(grepl("_09",msOSL$eid) == T, 9,0)
 msOSL$eid = substr(msOSL$eid,1,7)
 msOSL$data = "MS"
+msBGO = df
 #df = df[,names(df)[names(df) %in% names(msOSL)]]
-
 # longitudinal Combat
-LC = function(dat){covars = dat %>% dplyr::select(sex,edss,data,age)
-# sesh = dat$session
-# dat = dat %>% select(-session)
-features = c(dat %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
-             dat %>% select(starts_with("rh") & ends_with("volume")) %>% names(),
-             names(dat)[grepl(c("halamus|allidum|mygdala|
+LC = function(dat){
+  features = c(dat %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
+               dat %>% select(starts_with("rh") & ends_with("volume")) %>% names(),
+               names(dat)[grepl(c("halamus|allidum|mygdala|
                                 campus|utamen|audate|
                                 CC|Cerebellum.Cortex"),names(dat))],
-             dat %>% select(TotalGrayVol, EstimatedTotalIntraCranialVol,
-                            ends_with("Hippocampus")) %>% names())
-dat = longCombat(idvar = "eid", timevar = "session", batchvar = "scanner", 
-                 features = features,
-                 formula = "age + sex", ranef = "(1|eid)", data = dat)
-dat = dat$data_combat
-dat = cbind(covars,dat)
-colnames(dat) = gsub('.combat','',colnames(dat))
-# dat$session = sesh
-return(dat)
+               dat %>% select(TotalGrayVol, EstimatedTotalIntraCranialVol,
+                              ends_with("Hippocampus")) %>% names())
+  dat = dat %>% select(all_of(features),eid,data,sex,session,scanner, age, edss)%>%na.omit
+  covars = dat %>% dplyr::select(sex,edss,data,age)
+  dat = longCombat(idvar = "eid", timevar = "session", batchvar = "scanner", 
+                   features = features,
+                   formula = "age + sex", ranef = "(1|eid)", data = dat)
+  dat = dat$data_combat
+  dat = cbind(covars,dat)
+  colnames(dat) = gsub('.combat','',colnames(dat))
+  return(dat)
 }
 #
 #
 #
 #
-df =  filter(df, !scanner %in% c(501, 702, 802, 803, 1409, 1410,103, 104, 207, 214, 216, 303, 601, 701, 703, 708, 709, 801, 806, 808, 809, 813, 901, 1202, 1412, 1413, 1414))
+#df =  filter(df, !scanner %in% c(501, 702, 802, 803, 1409, 1410,103, 104, 207, 214, 216, 303, 601, 701, 703, 708, 709, 801, 806, 808, 809, 813, 901, 1202, 1412, 1413, 1414))
 msOSL =  filter(msOSL, !scanner %in% c("NMR1"))
-OFAMS_N_SCANS = nrow(df)
 msOSL$scanner = as.numeric(factor(msOSL$scanner))
 msOSL$sex = ifelse(msOSL$sex == "male","M",msOSL$sex)
 msOSL$sex = ifelse(msOSL$sex == "female","F",msOSL$sex)
+df$scanner = as.numeric(factor(df$scanner))
 df0=df
-df = rbind(LC(msOSL),LC(na.omit(df)))
+df = rbind(LC(msOSL),LC((df)))
+OFAMS_N_SCANS = df%>%filter(data=="OFAMS")%>%nrow
 #
 # For analysis of both datasets together, the harmonisation must be made together
 msOSL = msOSL[,names(msOSL)[names(msOSL) %in% names(df0)]]
 df0 = df0[,names(df0)[names(df0) %in% names(msOSL)]]
-df2 = LC(rbind(msOSL,na.omit(df0)))
+df2 = LC(rbind(msOSL,(df0)))
 #
 #
 # note: from here onwards, findings are being examined in OFAMS data and then replicated in independent Oslo data
@@ -174,7 +174,6 @@ df$TotalVol = df$TotalGrayVol/1000000
 df2$TIV = df2$EstimatedTotalIntraCranialVol/1000000 # transform into liters / dm3
 df2$TotalVol = df2$TotalGrayVol/1000000
 # from mm^3 to dm^3 or liters
-
 # # OFAMS
 # vol.m = lmer(TotalVol~age*sex+TIV+(1|eid),df%>%filter(data == "OFAMS"))
 # #Effect("session",vol.m)
@@ -361,8 +360,12 @@ UKBlong = UKBlong %>% filter(age < max(df$age)) # limits maximum age to that of 
 UKBlong$TIV = UKBlong$EstimatedTotalIntraCranialVol
 UKBlong$sex = ifelse(ifelse(UKBlong$sex == "Female",0,UKBlong$sex) == "Male",1,ifelse(UKBlong$sex == "Female",0,UKBlong$sex))
 plist = the_reslist = list()
+UKBlong$TotalGrayVol = UKBlong$EstimatedTotalIntraCranialVol # placeholder variable
+UKBlong$edss = 0 # placeholder variable
+UKBlong = LC(UKBlong)
+df2$TIV = df2$EstimatedTotalIntraCranialVol
+UKBlong$TIV = UKBlong$TotalGrayVol
 data_list = list(df%>%filter(data == "MS"),df%>%filter(data == "OFAMS"),df2, UKBlong)
-
 for (i in 1:length(data_list)){
   data_frame = data_list[[i]]
   # 3.1.1 Cortical #### #
@@ -605,7 +608,10 @@ unstd$data = c(replicate(nrow(unstd)/(length(data_list)+1),"Oslo"),
                replicate(nrow(unstd)/(length(data_list)+1),"both"),
                replicate(nrow(unstd)/(length(data_list)+1),"UKB"),
                replicate(nrow(unstd)/(length(data_list)+1),"cross_sectional"))
-write.csv(file = paste(savepath,"age_beta_standardized.csv",sep=""),unstd)
+unstd$p.corr = ifelse(unstd$p.corr > 1,1,unstd$p.corr)
+unstd_copy = unstd
+unstd_copy[2:6] = round(unstd_copy[2:6],2)
+write.csv(file = paste(savepath,"age_beta_standardized.csv",sep=""),unstd_copy)
 #
 #
 #
@@ -685,14 +691,26 @@ paste("Figure X. Ageing effects in relapsing-remitting multiple sclerosis and ag
 #
 # We also highlight the strongest effects for the results section
 unstd %>% group_by(data) %>%filter(age.beta == min(age.beta))
-#unstd %>% group_by(data) %>%filter(ROIs.region. == "Left.Thalamus.Proper" | ROIs.region. == "Right.Thalamus.Proper")
+unstd %>% group_by(data) %>%filter(ROIs.region. == "Left.Thalamus" | ROIs.region. == "Right.Thalamus")
 #unstd %>% group_by(data) %>%filter(ROIs.region. == "Left.Putamen" | ROIs.region. == "Right.Putamen")
 unstd %>% group_by(data) %>%filter(ROIs.region. == "lh_superiorfrontal_volume" | ROIs.region. == "rh_superiorfrontal_volume")
 unstd %>% group_by(data) %>%filter(ROIs.region. == "lh_rostralmiddlefrontal_volume" | ROIs.region. == "rh_rostralmiddlefrontal_volume")
 unstd %>% group_by(data) %>%filter(ROIs.region. == "lh_parsorbitalis_volume" | ROIs.region. == "rh_parsorbitalis_volume")
 unstd %>% group_by(data) %>%filter(ROIs.region. == "lh_parstriangularis_volume" | ROIs.region. == "rh_parstriangularis_volume")
-
 #
+# Comparison: global effects
+mod = lmer(age~TIV+sex+TotalVol+(1|eid),df%>%filter(data=="OFAMS"))
+effectsize::standardize_parameters(mod)$Std_Coefficient[4]
+effectsize::standardize_parameters(mod)$CI_high[4]
+effectsize::standardize_parameters(mod)$CI_low[4]
+summary(mod)$coefficients[4,5]
+mod = lmer(age~TIV+sex+TotalVol+(1|eid),df%>%filter(data=="MS"))
+effectsize::standardize_parameters(mod)$Std_Coefficient[4]
+effectsize::standardize_parameters(mod)$CI_high[4]
+effectsize::standardize_parameters(mod)$CI_low[4]
+summary(mod)$coefficients[4,5]
+
+
 # MEDIAN EFFECTS for in-text presentation
 unstd%>%group_by(data)%>%summarise(Md=median(age.beta),MAD=mad(age.beta))
 #
@@ -726,6 +744,8 @@ getit = function(the_data_frame,variable){
 }
 # Make another function for the estimation of differences in model coefficients
 # by Clogg, C. C., Petkova, E., & Haritou, A. (1995). Statistical methods for comparing regression coefficients between models. American Journal of Sociology, 100(5), 1261-1293. 
+UKBlong$Left.Thalamus = UKBlong$Left.Thalamus.Proper
+UKBlong$Right.Thalamus = UKBlong$Right.Thalamus.Proper
 Zdiff = function(ES1,ES2,SE1,SE2){
   Z = (ES1-ES2)/(sqrt( (SE1^2) + (SE2^2) ))
   return(Z)
@@ -766,7 +786,7 @@ ntab2 = ntab%>%filter(hemi=="right")
 ntab2$ROI = gsub("rh_","",ntab2$ROI)
 ntab2$region = (brain_regions(dk)[gsub("lh_","",brain_labels(dk)) %in% gsub("_volume","",ntab2$ROI)][1:34])[1:nrow(ntab2)]
 ntab$region = c((na.omit(ntab))$region, ntab2$region)
-#ntab$Z = ifelse(ntab$p>=0.05,0,ntab$Z)
+ntab$Z = ifelse(ntab$p>=0.05,0,ntab$Z)
 return(ntab)
 }
 ZpOSL = ggplot(fix_table(Zres_Oslo)) + geom_brain(atlas = dk, aes(fill = Z),color="black")+
@@ -783,9 +803,27 @@ Zmap = ggarrange(ZpOSL,ZpBGO,Zp, ncol=1,labels=c("Oslo data","OFAMS data","Combi
 Zmap = annotate_figure(Zmap, top = text_grob("Ageing rates in MS compared to 20 years older healthy controls",face = "bold", size = 17))
 ggsave(paste(savepath,"Zmap.pdf",sep=""),Zmap, width = 12, height = 6)
 #
+fix_table = function(Ztab){
+  ntab = Ztab #%>% filter(p<.05)
+  # consider cortical stats only
+  ntab = ntab %>% filter(grepl("volume",ROI))
+  ntab = ntab[order(ntab$ROI),] #ROIntab = ntab[order(ntab$ROI),] # order the data frame
+  ntab$hemi = ifelse(grepl("lh_",ntab$ROI)==T,"left","right")
+  ntab$region = (brain_regions(dk)[brain_labels(dk) %in% gsub("_volume","",ntab$ROI)][1:34])[1:nrow(ntab)]
+  ntab2 = ntab%>%filter(hemi=="right")
+  ntab2$ROI = gsub("rh_","",ntab2$ROI)
+  ntab2$region = (brain_regions(dk)[gsub("lh_","",brain_labels(dk)) %in% gsub("_volume","",ntab2$ROI)][1:34])[1:nrow(ntab2)]
+  ntab$region = c((na.omit(ntab))$region, ntab2$region)
+  #ntab$Z = ifelse(ntab$p>=0.05,0,ntab$Z)
+  return(ntab)
+}
 Zfix = rbind(fix_table(Zres_Oslo), fix_table(Zres_Bergen), fix_table(Zres))
 Zfix$data = c(replicate(nrow(fix_table(Zres_Oslo)), "Oslo"),replicate(nrow(fix_table(Zres_Bergen)), "Bergen"),replicate(nrow(fix_table(Zres)), "combined"))
-write.csv(Zfix,paste(savepath,"Ztable.csv",sep=""))
+
+Zfix_copy = rbind((Zres_Oslo), (Zres_Bergen), (Zres))
+Zfix_copy[2:5] = round(Zfix_copy[2:5],2)
+Zfix_copy$data = c(replicate(nrow((Zres_Oslo)), "Oslo"),replicate(nrow((Zres_Bergen)), "Bergen"),replicate(nrow((Zres)), "combined"))
+write.csv(Zfix_copy,paste(savepath,"Ztable.csv",sep=""))
 #
 # Closer examine the effects
 #Zfix[Zfix$ROI %in% signi,] %>% filter(data =="Oslo")
@@ -1103,8 +1141,6 @@ edss.plot[[i]] = ggarrange(p03,p04,ncol=2,widths=c(2,.5))#,labels=c("c","d"))
 plot_df02 = plot_df02 %>% select(names(plot_df01))
 edss.tab[[i]] = rbind(plot_df01,plot_df1[,colnames(plot_df1) %in% colnames(plot_df01)])
 }
-edss.plot[[1]]
-edss.tab[[1]]
 #ggarrange(plotlist = edss.plot, ncol=1)
 # make a table containing outputs of cortical and subcortical volume associations with 
 #edss.tab = rbind(plot_df01 %>% select(region,hemi,edss.beta,SE,t,p,p.corr),plot_df02 %>% select(region,hemi,edss.beta,SE,t,p,p.corr))
@@ -1134,11 +1170,13 @@ edss.tab = edss.tab[[1]]
 edss.tab[edss.tab$ROIs.region. %in% signi,] %>% filter(p.corr<.05)#filter(p<.05/(length(signi)+83))
 edss.tab[edss.tab$ROIs.region. %in% signi,] %>% filter(p<.05)
 edss.tab %>% filter(p.corr<.05)#filter(p<.05/(length(signi)+83))
-
+edss.tab_copy = edss.tab
+edss.tab_copy[2:5] = round(edss.tab_copy[2:5],2)
+edss.tab_copy[8] = round(edss.tab_copy[8],2)
 
   # 5.2 Save tables ####
 # write.csv(age.tab,file = paste(savepath,"age_tab.csv",sep=""))
-write.csv(edss.tab,file = paste(savepath,"edss_tab.csv",sep=""))
+write.csv(edss.tab_copy,file = paste(savepath,"edss_tab.csv",sep=""))
 #
 #
 # 6. Overlap between faster ageing regions and EDSS-related regions ####
@@ -1186,6 +1224,147 @@ p033 = p033+labs(fill="Std. Beta") +
   )
 p033
 #
+#
+# Check fatigue and PASAT in the OFAMS data
+# Fatigue ####
+fati = read_sas("/Users/max/Documents/Local/MS/demographics/Statistikk-filer/fatigue.sas7bdat") # fatigue scores
+demo10 = read.csv('/Users/max/Documents/Local/MS/data/OFAMS88_OFAMS10_lifestylepaper_ updated_beskyttet.csv',sep = ";") # 10 years follow up demo & clin scores
+
+# fix session factor levels
+fati$session = factor(fati$VISIT)
+fati$session = ifelse(fati$session == "Baselin",1,fati$session)
+fati$session = ifelse(fati$session == 4,7,fati$session)
+fati$session = ifelse(fati$session == 2,13,fati$session)
+fati$session = ifelse(fati$session == 3,25,fati$session)
+fati$eid = as.numeric(fati$patno)
+fati$fatigue = fati %>% select(A,     B,     C,     D,     E,     F,     G,     H,     I) %>% rowMeans()
+fati = fati %>% select(eid,session,fatigue)
+# start with fatigue
+df = merge(msBGO,fati,by = c("eid","session"))
+df$scanner = as.numeric(factor(df$scanner))
+# longitudinal Combat
+LC = function(dat){
+  features = c(dat %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
+             dat %>% select(starts_with("rh") & ends_with("volume")) %>% names(),
+             names(dat)[grepl(c("halamus|allidum|mygdala|
+                                campus|utamen|audate|
+                                CC|Cerebellum.Cortex"),names(dat))],
+             dat %>% select(TotalGrayVol, EstimatedTotalIntraCranialVol,
+                            ends_with("Hippocampus")) %>% names())
+  dat = dat %>% select(all_of(features),eid,data,sex,session,scanner, age, fatigue)%>%na.omit
+  covars = dat %>% dplyr::select(sex,fatigue,data,age)
+  dat = longCombat(idvar = "eid", timevar = "session", batchvar = "scanner", 
+                 features = features,
+                 formula = "age + sex", ranef = "(1|eid)", data = dat)
+  dat = dat$data_combat
+  dat = cbind(covars,dat)
+  colnames(dat) = gsub('.combat','',colnames(dat))
+  return(dat)
+}
+df = LC(df)
+ROIs = c(df %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
+           df %>% select(starts_with("rh") & ends_with("volume")) %>% names())
+reslist = list()
+for(region in 1:length(ROIs)){
+    f = formula(paste(ROIs[region],"~EstimatedTotalIntraCranialVol+sex+fatigue+age+(1|eid)"))
+    mod = lmer(f,df)
+    std.beta = effectsize::standardize_parameters(mod)$Std_Coefficient[4]
+    CI_high = effectsize::standardize_parameters(mod)$CI_high[4]
+    CI_low = effectsize::standardize_parameters(mod)$CI_low[4]
+    p = summary(mod)$coefficients[4,5]
+    reslist[[region]] = data.frame(ROIs[region],std.beta,CI_high,CI_low,p)
+  }
+res1 = list_rbind(reslist)
+res1 %>% filter(p<0.05/(length(signi)+83))
+res1[res1$ROIs.region. %in% signi,] %>% filter(p<0.05)
+  ROIs = names(df)
+  ROIs = ROIs[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC"),ROIs)]
+  #ROIs = ROIs[!grepl(c("CC|Cerebellum.Cortex"),ROIs)]
+  ROIs = ROIs[order(ROIs)]
+  reslist=list()
+for(region in 1:length(ROIs)){
+    f = formula(paste(ROIs[region],"~EstimatedTotalIntraCranialVol+sex+fatigue+age+(1|eid)"))
+    mod = lmer(f,df)
+    std.beta = effectsize::standardize_parameters(mod)$Std_Coefficient[4]
+    CI_high = effectsize::standardize_parameters(mod)$CI_high[4]
+    CI_low = effectsize::standardize_parameters(mod)$CI_low[4]
+    p = summary(mod)$coefficients[4,5]
+    reslist[[region]] = data.frame(ROIs[region],std.beta,CI_high,CI_low,p)
+  }
+res = list_rbind(reslist)
+res %>% filter(p<0.05/(length(signi)+83))
+res[res$ROIs.region. %in% signi,] %>% filter(p<0.05)
+fat.tab = rbind(res1,res)
+fat.tab_copy = fat.tab
+fat.tab_copy[2:5] = round(fat.tab_copy[2:5],2)
+write.csv(fat.tab_copy,file = paste(savepath,"fatigue_tab.csv",sep=""))
+#
+#
+# PASAT ####
+pasat1 = demo10%>%dplyr::select(Patnr,BL_PASATcorrect,PASAT_24M, PASAT_OFAMS10)
+pasat1 = melt(pasat1, id.vars = c("Patnr"))
+names(pasat1) = c("eid","session","PASAT")
+pasat1$session = ifelse(pasat1$session == "BL_PASATcorrect",1,0)+ifelse(pasat1$session == "PASAT_24M",25,0)+ifelse(pasat1$session == "PASAT_OFAMS10",145,0)
+df = merge(msBGO,pasat1,by = c("eid","session"))
+df$scanner = as.numeric(factor(df$scanner))
+# longitudinal Combat
+LC = function(dat){
+  features = c(dat %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
+               dat %>% select(starts_with("rh") & ends_with("volume")) %>% names(),
+               names(dat)[grepl(c("halamus|allidum|mygdala|
+                                campus|utamen|audate|
+                                CC|Cerebellum.Cortex"),names(dat))],
+               dat %>% select(TotalGrayVol, EstimatedTotalIntraCranialVol,
+                              ends_with("Hippocampus")) %>% names())
+  dat = dat %>% select(all_of(features),eid,data,sex,session,scanner, age, PASAT)%>%na.omit
+  covars = dat %>% dplyr::select(sex,PASAT,data,age)
+  dat = longCombat(idvar = "eid", timevar = "session", batchvar = "scanner", 
+                   features = features,
+                   formula = "age + sex", ranef = "(1|eid)", data = dat)
+  dat = dat$data_combat
+  dat = cbind(covars,dat)
+  colnames(dat) = gsub('.combat','',colnames(dat))
+  return(dat)
+}
+df = LC(df)
+ROIs = c(df %>% select(starts_with("lh") & ends_with("volume")) %>% names(),
+         df %>% select(starts_with("rh") & ends_with("volume")) %>% names())
+reslist = list()
+for(region in 1:length(ROIs)){
+  f = formula(paste(ROIs[region],"~EstimatedTotalIntraCranialVol+sex+PASAT+age+(1|eid)"))
+  mod = lmer(f,df)
+  std.beta = effectsize::standardize_parameters(mod)$Std_Coefficient[4]
+  CI_high = effectsize::standardize_parameters(mod)$CI_high[4]
+  CI_low = effectsize::standardize_parameters(mod)$CI_low[4]
+  p = summary(mod)$coefficients[4,5]
+  reslist[[region]] = data.frame(ROIs[region],std.beta,CI_high,CI_low,p)
+}
+res1 = list_rbind(reslist)
+res1 %>% filter(p<0.05/(length(signi)+83))
+
+res1[res1$ROIs.region. %in% signi,] %>% filter(p<0.05)
+
+ROIs = names(df)
+ROIs = ROIs[grepl(c("halamus|allidum|mygdala|campus|utamen|audate|CC"),ROIs)]
+#ROIs = ROIs[!grepl(c("CC|Cerebellum.Cortex"),ROIs)]
+ROIs = ROIs[order(ROIs)]
+reslist=list()
+for(region in 1:length(ROIs)){
+  f = formula(paste(ROIs[region],"~EstimatedTotalIntraCranialVol+sex+PASAT+age+(1|eid)"))
+  mod = lmer(f,df)
+  std.beta = effectsize::standardize_parameters(mod)$Std_Coefficient[4]
+  CI_high = effectsize::standardize_parameters(mod)$CI_high[4]
+  CI_low = effectsize::standardize_parameters(mod)$CI_low[4]
+  p = summary(mod)$coefficients[4,5]
+  reslist[[region]] = data.frame(ROIs[region],std.beta,CI_high,CI_low,p)
+}
+res = list_rbind(reslist)
+res %>% filter(p<0.05/(length(signi)+83))
+res[res$ROIs.region. %in% signi,] %>% filter(p<0.05)
+PASAT.tab = rbind(res1,res)
+PASAT.tab_copy = PASAT.tab
+PASAT.tab_copy[2:5] = round(PASAT.tab_copy[2:5],2)
+write.csv(PASAT.tab_copy,file = paste(savepath,"PASAT_tab.csv",sep=""))
 #
 #
 #

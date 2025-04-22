@@ -1007,7 +1007,37 @@ p033
 #
 #
 #
+# Some power simulations to round it up
+# use the right lateral occipital lobe as ROI as it presented some of the smallest effect of interest
+library(simr)
+## smallest 
+#lh_lateraloccipital_volume ~ edss
+model = lmer(lh_lateraloccipital_volume ~ edss + age + sex + TIV + (1|eid),data = na.omit(df2))
+powerSim(model,nsim=100)
+# hippocampus
+model = lmer(Left.Hippocampus ~ edss + age + sex + TIV + (1|eid),data = na.omit(df2))
+powerSim(model,nsim=100)
+model = lmer(Right.Hippocampus ~ edss + age + sex + TIV + (1|eid),data = na.omit(df2))
+powerSim(model,nsim=100)
 #
+model = lmer(Left.Thalamus ~ edss + age + sex + TIV + (1|eid),data = na.omit(df2))
+powerSim(model,nsim=100)
+#
+model = lmer(Left.Putamen ~ edss + age + sex + TIV + (1|eid),data = na.omit(df2))
+powerSim(model,nsim=100)
+
+model = lmer(lh_lateraloccipital_volume ~ age + sex + TIV + (1|eid),data = na.omit(df2)%>%filter(data == "MS"))
+powerSim(model,nsim=100)
+
+model = lmer(rh_superiorfrontal_volume ~ age + sex + TIV + (1|eid),data = na.omit(df2)%>%filter(data == "MS"))
+powerSim(model,nsim=100)
+model = lmer(lh_superiorfrontal_volume ~ age + sex + TIV + (1|eid),data = na.omit(df2)%>%filter(data == "MS"))
+powerSim(model,nsim=100)
+#
+model = lmer(lh_parsorbitalis_volume ~ age + sex + TIV + (1|eid),data = na.omit(df2)%>%filter(data == "MS"))
+powerSim(model,nsim=100)
+model = lmer(rh_parsorbitalis_volume ~ age + sex + TIV + (1|eid),data = na.omit(df2)%>%filter(data == "MS"))
+powerSim(model,nsim=100)
 #
 #
 #
