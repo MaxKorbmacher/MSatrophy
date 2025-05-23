@@ -618,7 +618,9 @@ write.csv(file = paste(savepath,"age_beta_standardized.csv",sep=""),unstd_copy)
 #
 # Key info to report ####
 # report the average ageing of participants in the longitudinal studies
-paste("OFAMS participants (N=85, scans=",OFAMS_N_SCANS,") were aged 38.9±8.3 (range: 19-58) years at baseline and 49.6±8.6 at the final follow-up, with 65.9% being females.")
+paste("OFAMS participants (N=85, scans=",OFAMS_N_SCANS,") were aged 38.9±8.3 (range: 19-58) years at baseline and 49.6±8.6 at the final follow-up, with 65.9% being females at the first visit, and ",
+      round((table(df %>% filter(data=="OFAMS") %>% filter(session=="145")%>%select(sex))[1]/df %>% filter(data=="OFAMS") %>% filter(session=="145")%>%nrow)*100,1),"% females at the final visit.")
+
 paste("The Oslo sample participants (N=", nrow(msOSL%>%filter(session==min(as.numeric(msOSL$session)))),
       ", scans=",nrow(msOSL),") were, on average, aged ", 
       msOSL %>% group_by(eid) %>% summarize(Age = min(age)) %>% reframe(M = round(mean(Age),1)),
@@ -634,7 +636,9 @@ paste("The Oslo sample participants (N=", nrow(msOSL%>%filter(session==min(as.nu
       msOSL %>% group_by(eid) %>% summarize(Age = max(age)) %>% reframe(M = round(sd(Age),0)),
       " at the last follow-up, with ",
       round((table((msOSL %>% filter(session == 1))$sex)[1]/msOSL %>% filter(session == 1) %>% nrow)*100,1),
-      "% being females.",sep="")
+      "% being females at the first visit, and ",
+      round((table((msOSL %>% group_by(eid) %>% filter(session == max(session)) %>%ungroup)$sex))[1]/(msOSL %>% group_by(eid) %>% filter(session == max(session)) %>%ungroup%>%nrow)*100,1),
+      "% being females at the last visit",sep="")
 paste("The healthy control ageing sample participants (N=", nrow(UKBlong%>%filter(session==min(as.numeric(UKBlong$session)))),
       ", scans=",nrow(UKBlong),") were, on average, aged ", 
       UKBlong %>% group_by(eid) %>% summarize(Age = min(age)) %>% reframe(M = round(mean(Age),1)),
@@ -1243,6 +1247,7 @@ p033
 fati = read_sas("/Users/max/Documents/Local/MS/demographics/Statistikk-filer/fatigue.sas7bdat") # fatigue scores
 fati_OSL = read.csv("/Users/max/Documents/Local/Data/Oslo/fatigue_Oslo.csv")
 #
+fati$VISIT
 # prep eid and session
 fati_OSL$session = substr(fati_OSL$eid,9,11)
 fati_OSL$eid = substr(fati_OSL$eid,1,7)
@@ -1260,8 +1265,15 @@ fati$session = ifelse(fati$session == 3,25,fati$session)
 fati$eid = as.numeric(fati$patno)
 fati$fatigue = fati %>% select(A,     B,     C,     D,     E,     F,     G,     H,     I) %>% rowMeans()
 fati = fati %>% select(eid,session,fatigue)
+nrow((fati))
 # start with fatigue
 df = merge(msBGO,fati,by = c("eid","session"))
+nrow(na.omit(df))
+length(unique(df$eid))
+
+nrow(na.omit(fati_OSL))
+length(unique(fati_OSL$eid))
+
 df$scanner = as.numeric(factor(df$scanner))
 # longitudinal Combat
 LC = function(dat){
@@ -1454,11 +1466,18 @@ PASAT_OSL$PASAT = PASAT_OSL$MACFIMS_PASAT3_zscore
 PASAT_OSL = PASAT_OSL %>% select(eid,session,PASAT)
 PASAT_OSL = merge(PASAT_OSL,msOSL,by=c("eid","session"))
 # OFAMS
-pasat1 = dpasat1 = dpasat1 = demo10%>%dplyr::select(Patnr,BL_PASATcorrect,PASAT_24M, PASAT_OFAMS10)
+pasat1 = demo10%>%dplyr::select(Patnr,BL_PASATcorrect,PASAT_24M, PASAT_OFAMS10)
 pasat1 = melt(pasat1, id.vars = c("Patnr"))
 names(pasat1) = c("eid","session","PASAT")
 pasat1$session = ifelse(pasat1$session == "BL_PASATcorrect",1,0)+ifelse(pasat1$session == "PASAT_24M",25,0)+ifelse(pasat1$session == "PASAT_OFAMS10",145,0)
 df = merge(msBGO,pasat1,by = c("eid","session"))
+
+length(unique(df$eid))
+df %>%select(PASAT)%>%na.omit%>%nrow
+
+length(unique(PASAT_OSL$eid))
+PASAT_OSL %>%select(PASAT)%>%na.omit%>%nrow
+
 df$scanner = as.numeric(factor(df$scanner))
 # longitudinal Combat
 LC = function(dat){
