@@ -196,6 +196,11 @@ df2$TotalVol = df2$TotalGrayVol/1000000
 # add UKB longitudinal data to check for random effects
 UKBlong = lifespan[lifespan$eid %in% (lifespan %>% filter(data == "UKB" & session == 2))$eid,]
 UKBlong = UKBlong %>% filter(age < max(df$age)) # limits maximum age to that of the MS cohort
+# check mean follow-up time
+check_frame = merge(UKBlong %>% filter(session == 2), (UKBlong %>% filter(session == 1)),by="eid")
+mean(check_frame$age.x-check_frame$age.y)
+sd(check_frame$age.x-check_frame$age.y)
+
 UKBlong$TIV = UKBlong$EstimatedTotalIntraCranialVol
 UKBlong$sex = ifelse(ifelse(UKBlong$sex == "Female",0,UKBlong$sex) == "Male",1,ifelse(UKBlong$sex == "Female",0,UKBlong$sex))
 plist = the_reslist = list()
@@ -1008,7 +1013,7 @@ demo10 = read.csv('/Users/max/Documents/Local/MS/data/OFAMS88_OFAMS10_lifestylep
 demodesc = data_list[[2]] %>% 
   group_by(eid) %>% 
   summarise(session = min(session)) %>% 
-  slice_max(session, n = length(unique(data_list[[1]]$eid)))
+  slice_max(session, n = length(unique(data_list[[2]]$eid)))
 demodesc = merge(demodesc,data_list[[2]],by = c("eid","session"))
 demodesc = demodesc[demodesc$eid %in% (data_list[[2]])$eid,]
 demodesc = demodesc[demodesc$eid %in% demo10[ifelse(demo10$Missing_reason == "Trakk seg",F,T),]$Patnr,]
@@ -1031,6 +1036,18 @@ paste("Age: ",round(mean(demodesc$age),1),"±",round(sd(demodesc$age),1),sep="")
 paste("EDSS: ",round(mean(demodesc$edss),1),"±",round(sd(demodesc$edss),1),sep="")
 
 #
+# Both samples
+# First visit OFAMS
+demodesc = data_list[[3]] %>% 
+  group_by(eid) %>% 
+  summarise(session = min(session)) %>% 
+  slice_max(session, n = length(unique(data_list[[3]]$eid)))
+demodesc = merge(demodesc,data_list[[3]],by = c("eid","session"))
+demodesc = demodesc[demodesc$eid %in% (data_list[[3]])$eid,]
+demodesc = demodesc[!demodesc$eid %in% demo10[ifelse(demo10$Missing_reason == "Trakk seg",T,F),]$Patnr,]
+table(demodesc$sex)
+paste("Age: ",round(mean(demodesc$age),1),"±",round(sd(demodesc$age),1),sep="")
+paste("EDSS: ",round(mean(demodesc$edss),1),"±",round(sd(demodesc$edss),1),sep="")
 #
 # 6. Overlap between faster ageing regions and EDSS-related regions ####
 # overlap between significant ageing regions and EDSS
@@ -1541,19 +1558,37 @@ model = lmer(Right.Thalamus~age+TIV+sex+(1|eid),data_list[[2]])
 powerSim(model,nsim=100)
 
 ################### for highlighted EDSS associations:
-model = lmer(lh_parsorbitalis_volume~edss+EstimatedTotalIntraCranialVol+sex+age+(1|eid),data_list[[1]])
+model = lmer(Left.Thalamus~edss+EstimatedTotalIntraCranialVol+sex+age+(1|eid),data_list[[1]])
 powerSim(model,nsim=100)
-model = lmer(rh_parsorbitalis_volume~edss+EstimatedTotalIntraCranialVol+sex+age+(1|eid),data_list[[1]])
+model = lmer(Right.Thalamus~edss+EstimatedTotalIntraCranialVol+sex+age+(1|eid),data_list[[1]])
 powerSim(model,nsim=100)
-model = lmer(lh_parsorbitalis_volume~edss+EstimatedTotalIntraCranialVol+sex+age+(1|eid),data_list[[2]])
+model = lmer(Left.Thalamus~edss+EstimatedTotalIntraCranialVol+sex+age+(1|eid),data_list[[2]])
 powerSim(model,nsim=100)
-model = lmer(rh_parsorbitalis_volume~edss+EstimatedTotalIntraCranialVol+sex+age+(1|eid),data_list[[2]])
+model = lmer(Right.Thalamus~edss+EstimatedTotalIntraCranialVol+sex+age+(1|eid),data_list[[2]])
+powerSim(model,nsim=100)
+data_list[[2]]$Right.Pallidum
+model = lmer(Right.Pallidum~edss+EstimatedTotalIntraCranialVol+sex+age+(1|eid),data_list[[1]])
+powerSim(model,nsim=100)
+model = lmer(Right.Pallidum~edss+EstimatedTotalIntraCranialVol+sex+age+(1|eid),data_list[[2]])
 powerSim(model,nsim=100)
 #
-model = lmer(lh_superiorfrontal_volume~edss+TIV+sex+(1|eid),data_list[[1]])
-powerSim(model,nsim=1000)
-model = lmer(lh_superiorfrontal_volume~edss+TIV+sex+(1|eid),data_list[[2]])
+
+model = lmer(Left.Hippocampus~edss+TIV+sex+(1|eid),data_list[[1]])
 powerSim(model,nsim=100)
+model = lmer(Left.Hippocampus~edss+TIV+sex+(1|eid),data_list[[2]])
+powerSim(model,nsim=100)
+
+model = lmer(lh_entorhinal_volume~edss+TIV+sex+(1|eid),data_list[[1]])
+powerSim(model,nsim=100)
+model = lmer(lh_entorhinal_volume~edss+TIV+sex+(1|eid),data_list[[2]])
+powerSim(model,nsim=100)
+
+model = lmer(TotalGrayVol~edss+TIV+sex+(1|eid),data_list[[1]])
+powerSim(model,nsim=100)
+model = lmer(TotalGrayVol~edss+TIV+sex+(1|eid),data_list[[2]])
+powerSim(model,nsim=100)
+
+
 #
 ############# Fatigue
 df = merge(msBGO,fati,by = c("eid","session"))
